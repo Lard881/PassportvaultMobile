@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "910878661504",
+    "project_id": "passportvault-652d6",
+    "storage_bucket": "passportvault-652d6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:910878661504:android:b4778da4624de624007f65",
+        "android_client_info": {
+          "package_name": "com.example.passportvault"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAk4Ws-imZdQQUd4UTEPT-G8j_mgc0a8LQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
