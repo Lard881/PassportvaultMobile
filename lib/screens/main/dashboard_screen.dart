@@ -172,11 +172,6 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   String _formatDate(String date) {
     return DateFormatter.formatShortDate(date);
   }
-      return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
-    } catch (e) {
-      return date;
-    }
-  }
 
   void _showAddDocumentModal() {
     if (_profiles.isEmpty) {
