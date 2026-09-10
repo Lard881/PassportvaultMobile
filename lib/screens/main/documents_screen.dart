@@ -13,6 +13,8 @@ import '../../screens/main/secure_sharing_screen.dart';
 import '../../services/notification_service.dart';
 import '../../utils/type_helpers.dart';
 import '../../utils/responsive.dart';
+import '../../utils/date_formatter.dart';
+import '../../widgets/skeleton_loader.dart';
 
 class DocumentsScreen extends StatefulWidget {
   const DocumentsScreen({super.key});
@@ -48,8 +50,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> with AutomaticKeepAli
   @override
   void initState() {
     super.initState();
-    _loadCachedData();
-    _fetchDocuments();
+    _loadCachedDataAndRefresh();
     _lastRefresh = DateTime.now();
   }
 
@@ -59,7 +60,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> with AutomaticKeepAli
     // Refresh if it's been more than 2 seconds since last refresh
     final now = DateTime.now();
     if (_lastRefresh == null || now.difference(_lastRefresh!).inSeconds > 2) {
-      _fetchDocuments();
+      _loadCachedDataAndRefresh();
       _lastRefresh = now;
     }
   }
@@ -68,6 +69,31 @@ class _DocumentsScreenState extends State<DocumentsScreen> with AutomaticKeepAli
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// Stale-while-revalidate pattern: Show cache instantly, fetch fresh in background
+  Future<void> _loadCachedDataAndRefresh() async {
+    // Step 1: Load cached data instantly (0ms)
+    final cachedDocs = await CacheService.getDocumentsCache();
+    final cachedProfiles = await CacheService.getProfilesCache();
+    
+    if (mounted && (cachedDocs.isNotEmpty || cachedProfiles.isNotEmpty)) {
+      setState(() {
+        _documents = cachedDocs;
+        _profiles = cachedProfiles;
+        _isLoading = false;
+        _filterAndSortDocuments();
+      });
+    }
+    
+    // Step 2: Check if cache is stale
+    final isDocsStale = await CacheService.isDocumentsCacheStale();
+    final isProfilesStale = await CacheService.isProfilesCacheStale();
+    
+    // Step 3: If stale, fetch fresh data in background
+    if (isDocsStale || isProfilesStale || cachedDocs.isEmpty || cachedProfiles.isEmpty) {
+      _fetchDocuments();
+    }
   }
 
   Future<void> _loadCachedData() async {
@@ -84,6 +110,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> with AutomaticKeepAli
   }
 
   Future<void> _fetchDocuments() async {
+    // Don't show loading spinner if we have cached data
     if (_documents.isEmpty) {
       setState(() => _isLoading = true);
     }
@@ -123,6 +150,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> with AutomaticKeepAli
         }
       }
     } catch (error) {
+      // Don't show error if we have cached data
       if (mounted && _documents.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -159,17 +187,12 @@ class _DocumentsScreenState extends State<DocumentsScreen> with AutomaticKeepAli
   String _getDocumentStatus(dynamic expiryDate) {
     if (expiryDate == null || expiryDate.toString().isEmpty) return 'No expiry';
     
-    try {
-      final today = DateTime.now();
-      final expiry = DateTime.parse(expiryDate.toString());
-      final daysUntilExpiry = expiry.difference(today).inDays;
-
-      if (daysUntilExpiry < 0) return 'Expired';
-      if (daysUntilExpiry <= 30) return 'Expiring Soon';
-      return 'Valid';
-    } catch (e) {
-      return 'No expiry';
-    }
+    final daysUntil = DateFormatter.daysUntilExpiry(expiryDate);
+    if (daysUntil == null) return 'No expiry';
+    
+    if (daysUntil < 0) return 'Expired';
+    if (daysUntil <= 30) return 'Expiring Soon';
+    return 'Valid';
   }
   IconData _getDocumentIcon(String? type) {
     switch (type) {
@@ -261,14 +284,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> with AutomaticKeepAli
   }
 
   String _formatDate(dynamic date) {
-    if (date == null || date.toString().isEmpty) return 'N/A';
-    try {
-      final dt = DateTime.parse(date.toString());
-      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
-    } catch (e) {
-      return 'N/A';
-    }
+    return DateFormatter.formatShortDate(date);
   }
 
   void _showAddDocumentModal() {
@@ -305,6 +321,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> with AutomaticKeepAli
             ),
           );
         }
+        // Force immediate refresh - bypass cache
+        setState(() => _isLoading = true);
         await _fetchDocuments();
         
         // Schedule notifications if document has expiry date
@@ -365,6 +383,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> with AutomaticKeepAli
             ),
           );
         }
+        // Force immediate refresh - bypass cache
+        setState(() => _isLoading = true);
         await _fetchDocuments();
         
         // Reschedule notifications if document has expiry date
@@ -405,6 +425,12 @@ class _DocumentsScreenState extends State<DocumentsScreen> with AutomaticKeepAli
   }
 
   Future<void> _handleDeleteDocument(dynamic documentId) async {
+    // Store original document for rollback
+    final originalDocument = _documents.firstWhere(
+      (d) => d['id']?.toString() == documentId?.toString(),
+      orElse: () => {},
+    );
+    
     // 1. Optimistic Local Delete (0ms instant removal off screen)
     setState(() {
       _documents.removeWhere((d) => d['id']?.toString() == documentId?.toString());
@@ -429,13 +455,19 @@ class _DocumentsScreenState extends State<DocumentsScreen> with AutomaticKeepAli
     try {
       await ApiService.deleteDocument(documentId);
     } catch (error) {
-      // If server delete fails, refresh to restore item
-      _fetchDocuments();
-      if (mounted) {
+      // Rollback: Restore document if server delete fails
+      if (mounted && originalDocument.isNotEmpty) {
+        setState(() {
+          _documents.add(originalDocument);
+          _filterAndSortDocuments();
+        });
+        await CacheService.saveDocumentsCache(_documents);
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to delete on server: $error'),
+            content: Text('Failed to delete: $error'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -584,19 +616,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> with AutomaticKeepAli
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _isLoading
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(color: Color(0xFF0d6efd)),
-                  SizedBox(height: 16),
-                  Text(
-                    'Loading documents...',
-                    style: TextStyle(color: Color(0xFF6c757d)),
-                  ),
-                ],
-              ),
-            )
+          ? SkeletonLoader.documentList()
           : RefreshIndicator(
               onRefresh: _fetchDocuments,
               color: const Color(0xFF0d6efd),

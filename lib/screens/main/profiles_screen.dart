@@ -8,6 +8,8 @@ import '../../widgets/modals/edit_profile_modal.dart';
 import '../../widgets/confirm_dialog.dart';
 import '../../utils/type_helpers.dart';
 import '../../utils/responsive.dart';
+import '../../utils/date_formatter.dart';
+import '../../widgets/skeleton_loader.dart';
 
 class ProfilesScreen extends StatefulWidget {
   const ProfilesScreen({super.key});
@@ -55,8 +57,7 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
   @override
   void initState() {
     super.initState();
-    _loadCachedData();
-    _fetchProfiles();
+    _loadCachedDataAndRefresh();
     _lastRefresh = DateTime.now();
   }
 
@@ -66,7 +67,7 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
     // Refresh if it's been more than 2 seconds since last refresh
     final now = DateTime.now();
     if (_lastRefresh == null || now.difference(_lastRefresh!).inSeconds > 2) {
-      _fetchProfiles();
+      _loadCachedDataAndRefresh();
       _lastRefresh = now;
     }
   }
@@ -75,6 +76,21 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// Stale-while-revalidate pattern: Show cache instantly, fetch fresh in background
+  Future<void> _loadCachedDataAndRefresh() async {
+    // Step 1: Load cached data instantly (0ms)
+    await _loadCachedData();
+    
+    // Step 2: Check if cache is stale
+    final isProfilesStale = await CacheService.isProfilesCacheStale();
+    final isDocsStale = await CacheService.isDocumentsCacheStale();
+    
+    // Step 3: If stale, fetch fresh data in background
+    if (isProfilesStale || isDocsStale || _profiles.isEmpty) {
+      _fetchProfiles();
+    }
   }
 
   Future<void> _loadCachedData() async {
@@ -102,6 +118,7 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
   }
 
   Future<void> _fetchProfiles() async {
+    // Don't show loading spinner if we have cached data
     if (_profiles.isEmpty) {
       setState(() => _isLoading = true);
     }
@@ -142,6 +159,7 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
         }
       }
     } catch (error) {
+      // Don't show error if we have cached data
       if (mounted && _profiles.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -171,17 +189,12 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
   String _getProfileStatus(dynamic expiryDate) {
     if (expiryDate == null || expiryDate.toString().isEmpty) return 'Active';
     
-    try {
-      final today = DateTime.now();
-      final expiry = DateTime.parse(expiryDate.toString());
-      final daysUntilExpiry = expiry.difference(today).inDays;
-
-      if (daysUntilExpiry < 0) return 'Expired';
-      if (daysUntilExpiry <= 30) return 'Expiring Soon';
-      return 'Active';
-    } catch (e) {
-      return 'Active';
-    }
+    final daysUntil = DateFormatter.daysUntilExpiry(expiryDate);
+    if (daysUntil == null) return 'Active';
+    
+    if (daysUntil < 0) return 'Expired';
+    if (daysUntil <= 30) return 'Expiring Soon';
+    return 'Active';
   }
 
   Color _getStatusColor(String status) {
@@ -252,6 +265,8 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
             ),
           );
         }
+        // Force immediate refresh - bypass cache
+        setState(() => _isLoading = true);
         await _fetchProfiles();
       }
     } catch (error) {
@@ -301,6 +316,8 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
             ),
           );
         }
+        // Force immediate refresh - bypass cache
+        setState(() => _isLoading = true);
         await _fetchProfiles();
       }
     } catch (error) {
@@ -329,6 +346,12 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
   }
 
   Future<void> _handleDeleteProfile(dynamic profileId) async {
+    // Store original profile for rollback
+    final originalProfile = _profiles.firstWhere(
+      (p) => p['id']?.toString() == profileId?.toString(),
+      orElse: () => {},
+    );
+    
     // 1. Optimistic Local Delete (0ms instant removal off screen)
     setState(() {
       _profiles.removeWhere((p) => p['id']?.toString() == profileId?.toString());
@@ -350,12 +373,27 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
     try {
       await ApiService.deleteProfile(profileId);
     } catch (error) {
-      _fetchProfiles();
-      if (mounted) {
+      // Rollback: Restore profile if server delete fails
+      if (mounted && originalProfile.isNotEmpty) {
+        setState(() {
+          _profiles.add(originalProfile);
+          _filterAndSortProfiles();
+        });
+        // Save back to cache (raw profile without UI properties)
+        final rawProfiles = _profiles.map((p) {
+          final copy = Map<String, dynamic>.from(p);
+          copy.remove('initials');
+          copy.remove('status');
+          copy.remove('bgColor');
+          return copy;
+        }).toList();
+        await CacheService.saveProfilesCache(rawProfiles);
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to delete on server: $error'),
+            content: Text('Failed to delete: $error'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -377,19 +415,7 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _isLoading
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(color: Color(0xFF0d6efd)),
-                  SizedBox(height: 16),
-                  Text(
-                    'Loading profiles...',
-                    style: TextStyle(color: Color(0xFF6c757d)),
-                  ),
-                ],
-              ),
-            )
+          ? SkeletonLoader.profileList()
           : RefreshIndicator(
               onRefresh: _fetchProfiles,
               color: const Color(0xFF0d6efd),

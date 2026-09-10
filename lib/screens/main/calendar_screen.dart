@@ -3,6 +3,8 @@ import 'package:table_calendar/table_calendar.dart';
 import '../../services/api_service.dart';
 import '../../services/cache_service.dart';
 import '../../widgets/modals/document_details_modal.dart';
+import '../../utils/date_formatter.dart';
+import '../../widgets/skeleton_loader.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -25,8 +27,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
   void initState() {
     super.initState();
     _selectedDay = _focusedDay;
-    _loadCachedData();
-    _fetchDocuments();
+    _loadCachedDataAndRefresh();
+  }
+
+  /// Stale-while-revalidate pattern
+  Future<void> _loadCachedDataAndRefresh() async {
+    await _loadCachedData();
+    
+    final isStale = await CacheService.isDocumentsCacheStale();
+    if (isStale || _documents.isEmpty) {
+      _fetchDocuments();
+    }
   }
 
   Future<void> _loadCachedData() async {
@@ -206,7 +217,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         elevation: 0,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF0d6efd)))
+          ? SkeletonLoader.calendar()
           : RefreshIndicator(
               onRefresh: _fetchDocuments,
               color: const Color(0xFF0d6efd),

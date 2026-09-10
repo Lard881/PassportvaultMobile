@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../services/cache_service.dart';
 import '../../widgets/modals/document_details_modal.dart';
+import '../../utils/date_formatter.dart';
+import '../../widgets/skeleton_loader.dart';
 
 class AlertsScreen extends StatefulWidget {
   const AlertsScreen({super.key});
@@ -22,8 +24,19 @@ class _AlertsScreenState extends State<AlertsScreen> {
   void initState() {
     super.initState();
     _loadSettings();
-    _loadCachedData();
-    _fetchData();
+    _loadCachedDataAndRefresh();
+  }
+
+  /// Stale-while-revalidate pattern
+  Future<void> _loadCachedDataAndRefresh() async {
+    await _loadCachedData();
+    
+    final isDocsStale = await CacheService.isDocumentsCacheStale();
+    final isProfilesStale = await CacheService.isProfilesCacheStale();
+    
+    if (isDocsStale || isProfilesStale || _documents.isEmpty) {
+      _fetchData();
+    }
   }
 
   Future<void> _loadCachedData() async {
@@ -250,19 +263,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _isLoading
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(color: Color(0xFF0d6efd)),
-                  SizedBox(height: 16),
-                  Text(
-                    'Loading alerts...',
-                    style: TextStyle(color: Color(0xFF6c757d)),
-                  ),
-                ],
-              ),
-            )
+          ? SkeletonLoader.alertList()
           : RefreshIndicator(
               onRefresh: () async {
                 await _loadSettings();

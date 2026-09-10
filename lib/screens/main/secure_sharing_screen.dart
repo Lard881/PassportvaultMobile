@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/api_service.dart';
+import '../../widgets/skeleton_loader.dart';
 
 class SecureSharingScreen extends StatefulWidget {
   const SecureSharingScreen({super.key});
@@ -217,19 +218,7 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
         ),
       ),
       body: _isLoading
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(color: Color(0xFF0d6efd)),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Loading...',
-                    style: TextStyle(color: subtitleColor),
-                  ),
-                ],
-              ),
-            )
+          ? SkeletonLoader.cardList()
           : RefreshIndicator(
               onRefresh: _fetchData,
               color: const Color(0xFF0d6efd),

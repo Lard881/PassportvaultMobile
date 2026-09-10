@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
+import '../../services/cache_service.dart';
+import '../../utils/date_formatter.dart';
+import '../../widgets/skeleton_loader.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -16,21 +19,50 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchNotifications();
+    _loadCachedDataAndRefresh();
+  }
+
+  /// Stale-while-revalidate pattern: Show cache instantly, fetch fresh in background
+  Future<void> _loadCachedDataAndRefresh() async {
+    // Step 1: Load cached data instantly
+    final cachedNotifications = await CacheService.getNotificationsCache();
+    if (mounted && cachedNotifications.isNotEmpty) {
+      setState(() {
+        _notifications = cachedNotifications;
+        _isLoading = false;
+      });
+    }
+    
+    // Step 2: Check if cache is stale
+    final isStale = await CacheService.isNotificationsCacheStale();
+    
+    // Step 3: If stale, fetch fresh data in background
+    if (isStale || cachedNotifications.isEmpty) {
+      _fetchNotifications();
+    }
   }
 
   Future<void> _fetchNotifications() async {
-    setState(() => _isLoading = true);
+    // Don't show loading spinner if we have cached data
+    if (_notifications.isEmpty) {
+      setState(() => _isLoading = true);
+    }
 
     try {
       final response = await ApiService.getNotifications();
       if (response['success'] == true) {
-        setState(() {
-          _notifications = response['data'] ?? [];
-        });
+        final notifications = response['data'] ?? [];
+        await CacheService.saveNotificationsCache(notifications);
+        
+        if (mounted) {
+          setState(() {
+            _notifications = notifications;
+          });
+        }
       }
     } catch (error) {
-      if (mounted) {
+      // Don't show error if we have cached data
+      if (mounted && _notifications.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to load notifications: $error'),
@@ -46,7 +78,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _markAsRead(dynamic notificationId) async {
+    // Store original notification for rollback
+    final originalNotification = _notifications.firstWhere(
+      (n) => n['id']?.toString() == notificationId?.toString(),
+      orElse: () => {},
+    );
+    final originalReadStatus = originalNotification['is_read'] ?? false;
+    
     try {
+      // Optimistic UI: Mark as read instantly
       final idStr = notificationId?.toString();
       setState(() {
         for (var n in _notifications) {
@@ -55,26 +95,48 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           }
         }
       });
+      await CacheService.saveNotificationsCache(_notifications);
+      
       final response = await ApiService.markNotificationAsRead(idStr);
       if (response['success'] == true) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Marked as read'),
+              backgroundColor: Colors.green,
               duration: Duration(seconds: 2),
             ),
           );
         }
       }
-      await _fetchNotifications();
     } catch (error) {
-      // Silent fail or refresh
-      await _fetchNotifications();
+      // Rollback on error
+      if (mounted && originalNotification.isNotEmpty) {
+        setState(() {
+          for (var n in _notifications) {
+            if (n['id']?.toString() == notificationId?.toString()) {
+              n['is_read'] = originalReadStatus;
+            }
+          }
+        });
+        await CacheService.saveNotificationsCache(_notifications);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to mark as read: $error'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
   Future<void> _markAllAsRead() async {
+    // Store original state for rollback
+    final originalNotifications = _notifications.map((n) => Map<String, dynamic>.from(n)).toList();
+    
     try {
+      // Optimistic UI: Mark all as read instantly
       setState(() {
         for (var n in _notifications) {
           n['is_read'] = true;
@@ -234,19 +296,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return Scaffold(
       backgroundColor: scaffoldBg,
       body: _isLoading
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(color: Color(0xFF0d6efd)),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Loading notifications...',
-                    style: TextStyle(color: subtitleColor),
-                  ),
-                ],
-              ),
-            )
+          ? SkeletonLoader.notificationList()
           : RefreshIndicator(
               onRefresh: _fetchNotifications,
               color: const Color(0xFF0d6efd),

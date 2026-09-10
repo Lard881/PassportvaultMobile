@@ -17,6 +17,8 @@ import '../../utils/responsive.dart';
 import '../../widgets/modals/profile_details_modal.dart';
 import '../../widgets/offline_banner.dart';
 import '../../utils/type_helpers.dart';
+import '../../utils/date_formatter.dart';
+import '../../widgets/skeleton_loader.dart';
 import 'main_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -39,8 +41,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   @override
   void initState() {
     super.initState();
-    _loadCachedData();
-    _fetchDashboardData();
+    _loadCachedDataAndRefresh();
     _lastRefresh = DateTime.now();
   }
 
@@ -50,8 +51,32 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     // Refresh if it's been more than 2 seconds since last refresh
     final now = DateTime.now();
     if (_lastRefresh == null || now.difference(_lastRefresh!).inSeconds > 2) {
-      _fetchDashboardData();
+      _loadCachedDataAndRefresh();
       _lastRefresh = now;
+    }
+  }
+
+  /// Stale-while-revalidate pattern: Show cache instantly, fetch fresh in background
+  Future<void> _loadCachedDataAndRefresh() async {
+    // Step 1: Load cached data instantly (0ms)
+    final cachedProfiles = await CacheService.getProfilesCache();
+    final cachedDocs = await CacheService.getDocumentsCache();
+    
+    if (mounted && (cachedProfiles.isNotEmpty || cachedDocs.isNotEmpty)) {
+      setState(() {
+        _profiles = cachedProfiles;
+        _documents = cachedDocs;
+        _isLoading = false;
+      });
+    }
+    
+    // Step 2: Check if cache is stale
+    final isProfilesStale = await CacheService.isProfilesCacheStale();
+    final isDocsStale = await CacheService.isDocumentsCacheStale();
+    
+    // Step 3: If stale, fetch fresh data in background
+    if (isProfilesStale || isDocsStale || cachedProfiles.isEmpty || cachedDocs.isEmpty) {
+      _fetchDashboardData();
     }
   }
 
@@ -68,6 +93,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   }
 
   Future<void> _fetchDashboardData() async {
+    // Don't show loading spinner if we have cached data
     if (_profiles.isEmpty && _documents.isEmpty) {
       setState(() => _isLoading = true);
     }
@@ -98,9 +124,15 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
         _notifications = results[2]['data'] ?? [];
       }
       
+      // Update UI with fresh data
+      if (mounted) {
+        setState(() {});
+      }
+      
       // Note: Unread count is in results[3] if needed for badge
     } catch (error) {
-      if (mounted) {
+      // Don't show error if we have cached data
+      if (mounted && _profiles.isEmpty && _documents.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to load dashboard: $error'),
@@ -125,29 +157,21 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
   String _getDocumentStatus(String? expiryDate) {
     if (expiryDate == null || expiryDate.isEmpty) return 'No expiry';
     
-    final today = DateTime.now();
-    try {
-      final expiry = DateTime.parse(expiryDate);
-      final daysUntilExpiry = expiry.difference(today).inDays;
-
-      if (daysUntilExpiry < 0) return 'Expired';
-      if (daysUntilExpiry <= 30) return 'Expiring Soon';
-      return 'Valid';
-    } catch (e) {
-      return 'No expiry';
-    }
+    final daysUntil = DateFormatter.daysUntilExpiry(expiryDate);
+    if (daysUntil == null) return 'No expiry';
+    
+    if (daysUntil < 0) return 'Expired';
+    if (daysUntil <= 30) return 'Expiring Soon';
+    return 'Valid';
   }
 
   int _calculateDaysToExpiry(String expiryDate) {
-    final today = DateTime.now();
-    final expiry = DateTime.parse(expiryDate);
-    return expiry.difference(today).inDays;
+    return DateFormatter.daysUntilExpiry(expiryDate) ?? 0;
   }
 
   String _formatDate(String date) {
-    try {
-      final dt = DateTime.parse(date);
-      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return DateFormatter.formatShortDate(date);
+  }
       return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
     } catch (e) {
       return date;
@@ -557,19 +581,7 @@ class _DashboardScreenState extends State<DashboardScreen> with AutomaticKeepAli
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: _isLoading
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(color: Color(0xFF0d6efd)),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Loading dashboard...',
-                    style: TextStyle(color: subtitleColor),
-                  ),
-                ],
-              ),
-            )
+          ? SkeletonLoader.dashboard()
           : RefreshIndicator(
               onRefresh: _fetchDashboardData,
               color: const Color(0xFF0d6efd),

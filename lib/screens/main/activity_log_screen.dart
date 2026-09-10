@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
+import '../../widgets/skeleton_loader.dart';
 
 class ActivityLogScreen extends StatefulWidget {
   const ActivityLogScreen({super.key});
@@ -164,19 +165,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: _isLoading
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(color: Color(0xFF0d6efd)),
-                  SizedBox(height: 16),
-                  Text(
-                    'Loading activities...',
-                    style: TextStyle(color: Color(0xFF6c757d)),
-                  ),
-                ],
-              ),
-            )
+          ? SkeletonLoader.cardList()
           : RefreshIndicator(
               onRefresh: _fetchActivityLog,
               color: const Color(0xFF0d6efd),

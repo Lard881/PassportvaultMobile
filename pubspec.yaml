@@ -77,6 +77,9 @@ dependencies:
   # SVG Support
   flutter_svg: ^2.0.10
   
+  # Skeleton Loading Screens
+  shimmer: ^3.0.0
+  
   # Crypto for hashing
   crypto: ^3.0.3
   
