@@ -6,11 +6,13 @@ import 'dart:io';
 class AddDocumentModal extends StatefulWidget {
   final List<Map<String, dynamic>> profiles;
   final Function(Map<String, dynamic>) onSubmit;
+  final String? initialProfileId;
 
   const AddDocumentModal({
     super.key,
     required this.profiles,
     required this.onSubmit,
+    this.initialProfileId,
   });
 
   @override
@@ -24,12 +26,12 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
   final _issueDateController = TextEditingController();
   final _expiryDateController = TextEditingController();
   final _notesController = TextEditingController();
-  
+
   String _documentType = 'Passport';
   String? _selectedProfileId;
   File? _documentFile;
   String? _fileName;
-  
+
   final List<String> _documentTypes = [
     'Passport',
     'Visa',
@@ -37,8 +39,14 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
     'Driver\'s License',
     'Birth Certificate',
     'Marriage Certificate',
-    'Other'
+    'Other',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedProfileId = widget.initialProfileId;
+  }
 
   @override
   void dispose() {
@@ -60,7 +68,7 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
       if (result != null) {
         final file = File(result.files.single.path!);
         final fileSize = await file.length();
-        
+
         // Check file size (max 10MB)
         if (fileSize > 10 * 1024 * 1024) {
           if (mounted) {
@@ -70,7 +78,7 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
           }
           return;
         }
-        
+
         setState(() {
           _documentFile = file;
           _fileName = result.files.single.name;
@@ -78,9 +86,9 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error picking file: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error picking file: $e')));
       }
     }
   }
@@ -100,7 +108,9 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
         if (fileSize > 10 * 1024 * 1024) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Photo size must be less than 10MB')),
+              const SnackBar(
+                content: Text('Photo size must be less than 10MB'),
+              ),
             );
           }
           return;
@@ -113,21 +123,24 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error taking photo: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error taking photo: $e')));
       }
     }
   }
 
-  Future<void> _selectDate(BuildContext context, TextEditingController controller) async {
+  Future<void> _selectDate(
+    BuildContext context,
+    TextEditingController controller,
+  ) async {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
       firstDate: DateTime(1900),
       lastDate: DateTime(2100),
     );
-    
+
     if (picked != null) {
       setState(() {
         controller.text = picked.toIso8601String().split('T')[0];
@@ -150,7 +163,7 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
         );
         return;
       }
-      
+
       final data = {
         'documentFile': _documentFile,
         'document_name': _documentNameController.text.trim(),
@@ -168,7 +181,7 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
         'description': _notesController.text.trim(),
         'notes': _notesController.text.trim(),
       };
-      
+
       widget.onSubmit(data);
       Navigator.of(context).pop();
     }
@@ -179,7 +192,9 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dialogBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     final textColor = isDark ? Colors.white : const Color(0xFF1A1A1A);
-    final subtitleColor = isDark ? const Color(0xFFADB5BD) : const Color(0xFF6C757D);
+    final subtitleColor = isDark
+        ? const Color(0xFFADB5BD)
+        : const Color(0xFF6C757D);
     final handleColor = isDark ? Colors.grey[700] : Colors.grey[300];
 
     return Dialog(
@@ -204,7 +219,7 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            
+
             // Header
             Padding(
               padding: const EdgeInsets.all(20),
@@ -226,7 +241,7 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
                 ],
               ),
             ),
-            
+
             // Form
             Expanded(
               child: SingleChildScrollView(
@@ -252,7 +267,10 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
                             child: OutlinedButton.icon(
                               onPressed: _pickFile,
                               icon: const Icon(Icons.upload_file, size: 18),
-                              label: const Text('Pick File', style: TextStyle(fontSize: 13)),
+                              label: const Text(
+                                'Pick File',
+                                style: TextStyle(fontSize: 13),
+                              ),
                               style: OutlinedButton.styleFrom(
                                 minimumSize: const Size(0, 48),
                               ),
@@ -262,8 +280,14 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
                           Expanded(
                             child: OutlinedButton.icon(
                               onPressed: _takeCameraPhoto,
-                              icon: const Icon(Icons.camera_alt_outlined, size: 18),
-                              label: const Text('Take Photo', style: TextStyle(fontSize: 13)),
+                              icon: const Icon(
+                                Icons.camera_alt_outlined,
+                                size: 18,
+                              ),
+                              label: const Text(
+                                'Take Photo',
+                                style: TextStyle(fontSize: 13),
+                              ),
                               style: OutlinedButton.styleFrom(
                                 minimumSize: const Size(0, 48),
                               ),
@@ -276,7 +300,11 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
                           padding: const EdgeInsets.only(top: 8),
                           child: Row(
                             children: [
-                              const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                              const Icon(
+                                Icons.check_circle,
+                                color: Colors.green,
+                                size: 16,
+                              ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -292,7 +320,7 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
                           ),
                         ),
                       const SizedBox(height: 20),
-                      
+
                       // Document Name
                       _buildTextField(
                         'Document Name *',
@@ -301,7 +329,7 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
                         hint: 'e.g. My Passport',
                         textColor: textColor,
                       ),
-                      
+
                       // Document Type
                       _buildDropdown(
                         'Document Type *',
@@ -312,10 +340,10 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
                         },
                         textColor: textColor,
                       ),
-                      
+
                       // Profile Association
                       _buildProfileDropdown(textColor: textColor),
-                      
+
                       // Document Number
                       _buildTextField(
                         'Document Number',
@@ -323,13 +351,21 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
                         hint: 'e.g. G0123456',
                         textColor: textColor,
                       ),
-                      
+
                       // Issue Date
-                      _buildDateField('Issue Date', _issueDateController, textColor: textColor),
-                      
+                      _buildDateField(
+                        'Issue Date',
+                        _issueDateController,
+                        textColor: textColor,
+                      ),
+
                       // Expiry Date
-                      _buildDateField('Expiry Date', _expiryDateController, textColor: textColor),
-                      
+                      _buildDateField(
+                        'Expiry Date',
+                        _expiryDateController,
+                        textColor: textColor,
+                      ),
+
                       // Notes
                       _buildTextField(
                         'Notes',
@@ -338,9 +374,9 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
                         hint: 'Add any additional notes',
                         textColor: textColor,
                       ),
-                      
+
                       const SizedBox(height: 24),
-                      
+
                       // Action Buttons
                       Row(
                         children: [
@@ -434,7 +470,9 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
       safeItems.add(value);
     }
     final itemList = safeItems.toList();
-    final safeValue = itemList.contains(value) ? value : (itemList.isNotEmpty ? itemList.first : null);
+    final safeValue = itemList.contains(value)
+        ? value
+        : (itemList.isNotEmpty ? itemList.first : null);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -454,10 +492,7 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
             initialValue: safeValue,
             decoration: const InputDecoration(border: OutlineInputBorder()),
             items: itemList.map((item) {
-              return DropdownMenuItem(
-                value: item,
-                child: Text(item),
-              );
+              return DropdownMenuItem(value: item, child: Text(item));
             }).toList(),
             onChanged: onChanged,
           ),
@@ -472,7 +507,9 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
         .where((id) => id != null && id.isNotEmpty)
         .cast<String>()
         .toSet();
-    final safeProfileId = validProfileIds.contains(_selectedProfileId) ? _selectedProfileId : null;
+    final safeProfileId = validProfileIds.contains(_selectedProfileId)
+        ? _selectedProfileId
+        : null;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
@@ -492,15 +529,18 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
             initialValue: safeProfileId,
             decoration: const InputDecoration(border: OutlineInputBorder()),
             hint: const Text('Select a profile'),
-            items: widget.profiles.map((profile) {
-              final id = profile['id']?.toString();
-              if (id == null || id.isEmpty) return null;
-              final name = profile['full_name'] ?? profile['name'] ?? 'Unnamed Profile';
-              return DropdownMenuItem<String>(
-                value: id,
-                child: Text(name),
-              );
-            }).whereType<DropdownMenuItem<String>>().toList(),
+            items: widget.profiles
+                .map((profile) {
+                  final id = profile['id']?.toString();
+                  if (id == null || id.isEmpty) return null;
+                  final name =
+                      profile['full_name'] ??
+                      profile['name'] ??
+                      'Unnamed Profile';
+                  return DropdownMenuItem<String>(value: id, child: Text(name));
+                })
+                .whereType<DropdownMenuItem<String>>()
+                .toList(),
             onChanged: (value) {
               setState(() {
                 _selectedProfileId = value;
@@ -518,7 +558,11 @@ class _AddDocumentModalState extends State<AddDocumentModal> {
     );
   }
 
-  Widget _buildDateField(String label, TextEditingController controller, {Color? textColor}) {
+  Widget _buildDateField(
+    String label,
+    TextEditingController controller, {
+    Color? textColor,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(

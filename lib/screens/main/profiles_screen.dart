@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import '../../services/api_service.dart';
 import '../../services/cache_service.dart';
+import '../../services/file_download_service.dart';
+import '../../services/local_notification_service.dart';
 import '../../widgets/modals/add_profile_modal.dart';
+import '../../widgets/modals/add_document_modal.dart';
+import '../../widgets/modals/document_details_modal.dart';
+import '../../widgets/modals/edit_document_modal.dart';
 import '../../widgets/modals/profile_details_modal.dart';
 import '../../widgets/modals/edit_profile_modal.dart';
 import '../../widgets/confirm_dialog.dart';
+import 'secure_sharing_screen.dart';
 import '../../utils/type_helpers.dart';
 import '../../utils/responsive.dart';
 import '../../utils/date_formatter.dart';
@@ -18,7 +25,17 @@ class ProfilesScreen extends StatefulWidget {
   State<ProfilesScreen> createState() => _ProfilesScreenState();
 }
 
-class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAliveClientMixin {
+String _getDocumentStatus(dynamic expiryDate) {
+  if (expiryDate == null || expiryDate.toString().isEmpty) return 'No expiry';
+  final daysUntil = DateFormatter.daysUntilExpiry(expiryDate);
+  if (daysUntil == null) return 'No expiry';
+  if (daysUntil < 0) return 'Expired';
+  if (daysUntil <= 30) return 'Expiring Soon';
+  return 'Valid';
+}
+
+class _ProfilesScreenState extends State<ProfilesScreen>
+    with AutomaticKeepAliveClientMixin {
   bool _isLoading = true;
   List<dynamic> _profiles = [];
   List<dynamic> _documents = [];
@@ -39,7 +56,7 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
     'Child',
     'Parent',
     'Sibling',
-    'Other'
+    'Other',
   ];
 
   // Pastel colors matching web version
@@ -82,11 +99,11 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
   Future<void> _loadCachedDataAndRefresh() async {
     // Step 1: Load cached data instantly (0ms)
     await _loadCachedData();
-    
+
     // Step 2: Check if cache is stale
     final isProfilesStale = await CacheService.isProfilesCacheStale();
     final isDocsStale = await CacheService.isDocumentsCacheStale();
-    
+
     // Step 3: If stale, fetch fresh data in background
     if (isProfilesStale || isDocsStale || _profiles.isEmpty) {
       _fetchProfiles();
@@ -131,12 +148,22 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
 
       final profilesResponse = results[0];
       final documentsResponse = results[1];
-      
+
       if (profilesResponse['success'] == true) {
         final rawProfiles = profilesResponse['data'] as List? ?? [];
         await CacheService.saveProfilesCache(rawProfiles);
+        final rawDocuments = documentsResponse['success'] == true
+            ? documentsResponse['data'] as List? ?? []
+            : <dynamic>[];
+        final documents = rawDocuments.map((document) {
+          final documentMap = TypeHelpers.toMap(document);
+          return {
+            ...documentMap,
+            'status': _getDocumentStatus(documentMap['expiry_date']),
+          };
+        }).toList();
         if (documentsResponse['success'] == true) {
-          await CacheService.saveDocumentsCache(documentsResponse['data'] as List? ?? []);
+          await CacheService.saveDocumentsCache(documents);
         }
 
         final profiles = rawProfiles.asMap().entries.map((entry) {
@@ -149,11 +176,11 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
             'bgColor': _pastelColors[index % _pastelColors.length],
           };
         }).toList();
-        
+
         if (mounted) {
           setState(() {
             _profiles = profiles;
-            _documents = documentsResponse['data'] as List? ?? [];
+            _documents = documents;
             _filterAndSortProfiles();
           });
         }
@@ -178,7 +205,10 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
   String _getInitials(String fullName) {
     final clean = fullName.trim();
     if (clean.isEmpty) return '?';
-    final parts = clean.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final parts = clean
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
     if (parts.isEmpty) return '?';
     if (parts.length == 1) {
       return parts[0][0].toUpperCase();
@@ -188,10 +218,10 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
 
   String _getProfileStatus(dynamic expiryDate) {
     if (expiryDate == null || expiryDate.toString().isEmpty) return 'Active';
-    
+
     final daysUntil = DateFormatter.daysUntilExpiry(expiryDate);
     if (daysUntil == null) return 'Active';
-    
+
     if (daysUntil < 0) return 'Expired';
     if (daysUntil <= 30) return 'Expiring Soon';
     return 'Active';
@@ -213,12 +243,17 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
   void _filterAndSortProfiles() {
     // Filter
     var filtered = _profiles.where((profile) {
-      final matchesSearch = _searchTerm.isEmpty ||
-          (profile['full_name'] ?? '').toLowerCase().contains(_searchTerm.toLowerCase()) ||
-          (profile['document_number'] ?? '').toLowerCase().contains(_searchTerm.toLowerCase());
-      
-      final matchesType = _filterType == 'All' ||
-          profile['profile_type'] == _filterType;
+      final matchesSearch =
+          _searchTerm.isEmpty ||
+          (profile['full_name'] ?? '').toLowerCase().contains(
+            _searchTerm.toLowerCase(),
+          ) ||
+          (profile['document_number'] ?? '').toLowerCase().contains(
+            _searchTerm.toLowerCase(),
+          );
+
+      final matchesType =
+          _filterType == 'All' || profile['profile_type'] == _filterType;
 
       return matchesSearch && matchesType;
     }).toList();
@@ -227,13 +262,21 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
     filtered.sort((a, b) {
       switch (_sortBy) {
         case 'name-asc':
-          return (a['full_name'] ?? '').toString().compareTo((b['full_name'] ?? '').toString());
+          return (a['full_name'] ?? '').toString().compareTo(
+            (b['full_name'] ?? '').toString(),
+          );
         case 'name-desc':
-          return (b['full_name'] ?? '').toString().compareTo((a['full_name'] ?? '').toString());
+          return (b['full_name'] ?? '').toString().compareTo(
+            (a['full_name'] ?? '').toString(),
+          );
         case 'type':
-          return (a['profile_type'] ?? '').toString().compareTo((b['profile_type'] ?? '').toString());
+          return (a['profile_type'] ?? '').toString().compareTo(
+            (b['profile_type'] ?? '').toString(),
+          );
         case 'status':
-          return (a['status'] ?? '').toString().compareTo((b['status'] ?? '').toString());
+          return (a['status'] ?? '').toString().compareTo(
+            (b['status'] ?? '').toString(),
+          );
         default:
           return 0;
       }
@@ -243,19 +286,21 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
       _filteredProfiles = filtered;
     });
   }
+
   void _showAddProfileModal() {
     showDialog(
       context: context,
-      builder: (context) => AddProfileModal(
-        onSubmit: _handleAddProfile,
-      ),
+      builder: (context) => AddProfileModal(onSubmit: _handleAddProfile),
     );
   }
 
-  Future<void> _handleAddProfile(Map<String, dynamic> profileData, File? photoFile) async {
+  Future<void> _handleAddProfile(
+    Map<String, dynamic> profileData,
+    File? photoFile,
+  ) async {
     try {
       final response = await ApiService.uploadProfile(profileData, photoFile);
-      
+
       if (response['success'] == true) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -289,8 +334,255 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
         documents: _documents.map((d) => TypeHelpers.toMap(d)).toList(),
         onEdit: () => _showEditProfileModal(profile),
         onDelete: () => _confirmDeleteProfile(profile),
+        onAddDocument: () =>
+            _showAddDocumentModal(initialProfileId: profile['id']?.toString()),
+        onOpenDocument: (document) => _showDocumentDetails(document),
       ),
     );
+  }
+
+  void _showAddDocumentModal({String? initialProfileId}) {
+    if (_profiles.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please create a profile first')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AddDocumentModal(
+        profiles: _profiles
+            .map((profile) => TypeHelpers.toMap(profile))
+            .toList(),
+        initialProfileId: initialProfileId,
+        onSubmit: _handleAddDocument,
+      ),
+    );
+  }
+
+  Future<void> _handleAddDocument(Map<String, dynamic> documentData) async {
+    try {
+      final file = documentData['documentFile'];
+      if (file is! File) {
+        throw Exception('Please select a document file');
+      }
+
+      final response = await ApiService.uploadDocument(documentData, file);
+      if (response['success'] != true) {
+        throw Exception(response['message'] ?? 'Document upload failed');
+      }
+
+      await _fetchProfiles();
+      final expiryDate = documentData['dateOfExpiry']?.toString();
+      final uploadedDocumentId = response['data']?['id']?.toString();
+      if (expiryDate != null &&
+          expiryDate.isNotEmpty &&
+          uploadedDocumentId != null) {
+        await LocalNotificationService.scheduleDocumentExpiryNotifications(
+          documentId: uploadedDocumentId,
+          documentName: documentData['documentName']?.toString() ?? 'Document',
+          expiryDate: DateTime.parse(expiryDate),
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Document added successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to add document: $error'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showDocumentDetails(Map<String, dynamic> document) {
+    showDialog(
+      context: context,
+      builder: (context) => DocumentDetailsModal(
+        document: document,
+        onEdit: () => _showEditDocumentModal(document),
+        onDelete: () => _confirmDeleteDocument(document),
+        onShare: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => SecureSharingScreen(
+              initialDocumentId: document['id']?.toString(),
+            ),
+          ),
+        ),
+        onDownload: () => _downloadDocument(document),
+      ),
+    );
+  }
+
+  void _showEditDocumentModal(Map<String, dynamic> document) {
+    showDialog(
+      context: context,
+      builder: (context) => EditDocumentModal(
+        document: document,
+        profiles: _profiles
+            .map((profile) => TypeHelpers.toMap(profile))
+            .toList(),
+        onSubmit: (data) => _handleEditDocument(document['id'], data),
+      ),
+    );
+  }
+
+  Future<void> _handleEditDocument(
+    dynamic documentId,
+    Map<String, dynamic> documentData,
+  ) async {
+    try {
+      final response = await ApiService.updateDocument(
+        documentId,
+        documentData,
+      );
+      if (response['success'] != true) {
+        throw Exception(response['message'] ?? 'Document update failed');
+      }
+
+      await _fetchProfiles();
+      final expiryDate = documentData['expiryDate']?.toString();
+      if (expiryDate != null && expiryDate.isNotEmpty) {
+        await LocalNotificationService.scheduleDocumentExpiryNotifications(
+          documentId: documentId.toString(),
+          documentName: documentData['documentName']?.toString() ?? 'Document',
+          expiryDate: DateTime.parse(expiryDate),
+        );
+      } else {
+        await LocalNotificationService.cancelDocumentNotifications(
+          documentId.toString(),
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Document updated successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update document: $error'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _confirmDeleteDocument(Map<String, dynamic> document) {
+    showDialog(
+      context: context,
+      builder: (context) => ConfirmDialog(
+        title: 'Delete Document',
+        message:
+            'Are you sure you want to delete "${document['document_name']}"? This action cannot be undone.',
+        confirmText: 'Delete',
+        type: 'danger',
+        onConfirm: () => _deleteProfileDocument(document['id']),
+      ),
+    );
+  }
+
+  Future<void> _deleteProfileDocument(dynamic documentId) async {
+    try {
+      final response = await ApiService.deleteDocument(documentId);
+      if (response['success'] != true) {
+        throw Exception(response['message'] ?? 'Document deletion failed');
+      }
+
+      await LocalNotificationService.cancelDocumentNotifications(
+        documentId.toString(),
+      );
+      await _fetchProfiles();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Document deleted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete document: $error'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _downloadDocument(Map<String, dynamic> document) async {
+    try {
+      final bytes = await ApiService.downloadDocument(document['id']);
+      final fileName =
+          document['file_name'] ?? document['document_name'] ?? 'document';
+      final path = await FileDownloadService.downloadFile(
+        bytes: bytes,
+        fileName: fileName.toString(),
+        mimeType: _getDocumentMimeType(document['file_type']?.toString()),
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Document saved to $path'),
+            backgroundColor: Colors.green,
+            action: SnackBarAction(
+              label: 'Share',
+              textColor: Colors.white,
+              onPressed: () => Share.shareXFiles([XFile(path)]),
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to download document: $error'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  String _getDocumentMimeType(String? extension) {
+    switch (extension?.toLowerCase()) {
+      case 'pdf':
+        return 'application/pdf';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      default:
+        return 'application/octet-stream';
+    }
   }
 
   void _showEditProfileModal(Map<String, dynamic> profile) {
@@ -298,15 +590,24 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
       context: context,
       builder: (context) => EditProfileModal(
         profile: profile,
-        onSubmit: (data, photoFile) => _handleEditProfile(profile['id'], data, photoFile),
+        onSubmit: (data, photoFile) =>
+            _handleEditProfile(profile['id'], data, photoFile),
       ),
     );
   }
 
-  Future<void> _handleEditProfile(dynamic profileId, Map<String, dynamic> profileData, File? photoFile) async {
+  Future<void> _handleEditProfile(
+    dynamic profileId,
+    Map<String, dynamic> profileData,
+    File? photoFile,
+  ) async {
     try {
-      final response = await ApiService.updateProfileWithPhoto(profileId, profileData, photoFile);
-      
+      final response = await ApiService.updateProfileWithPhoto(
+        profileId,
+        profileData,
+        photoFile,
+      );
+
       if (response['success'] == true) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -337,7 +638,8 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
       context: context,
       builder: (context) => ConfirmDialog(
         title: 'Delete Profile',
-        message: 'Are you sure you want to delete "${profile['full_name']}"? This action cannot be undone.',
+        message:
+            'Are you sure you want to delete "${profile['full_name']}"? This action cannot be undone.',
         confirmText: 'Delete',
         type: 'danger',
         onConfirm: () => _handleDeleteProfile(profile['id']),
@@ -351,10 +653,12 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
       (p) => p['id']?.toString() == profileId?.toString(),
       orElse: () => {},
     );
-    
+
     // 1. Optimistic Local Delete (0ms instant removal off screen)
     setState(() {
-      _profiles.removeWhere((p) => p['id']?.toString() == profileId?.toString());
+      _profiles.removeWhere(
+        (p) => p['id']?.toString() == profileId?.toString(),
+      );
       _filterAndSortProfiles();
     });
     await CacheService.removeProfileFromCache(profileId);
@@ -388,7 +692,7 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
           return copy;
         }).toList();
         await CacheService.saveProfilesCache(rawProfiles);
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to delete: $error'),
@@ -403,14 +707,20 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
   @override
   Widget build(BuildContext context) {
     super.build(context); // Required for AutomaticKeepAliveClientMixin
-    
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF242424) : Colors.white;
     final textColor = isDark ? Colors.white : const Color(0xFF212529);
-    final subtextColor = isDark ? const Color(0xFFadb5bd) : const Color(0xFF6c757d);
-    final borderColor = isDark ? const Color(0xFF404040) : const Color(0xFFDEE2E6);
+    final subtextColor = isDark
+        ? const Color(0xFFadb5bd)
+        : const Color(0xFF6c757d);
+    final borderColor = isDark
+        ? const Color(0xFF404040)
+        : const Color(0xFFDEE2E6);
 
-    final safeFilterType = _profileTypes.contains(_filterType) ? _filterType : 'All';
+    final safeFilterType = _profileTypes.contains(_filterType)
+        ? _filterType
+        : 'All';
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -439,10 +749,7 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
                           const SizedBox(height: 4),
                           Text(
                             '${_profiles.length} ${_profiles.length == 1 ? 'person' : 'people'} managed',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: subtextColor,
-                            ),
+                            style: TextStyle(fontSize: 14, color: subtextColor),
                           ),
                         ],
                       ),
@@ -469,10 +776,17 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
                                 decoration: InputDecoration(
                                   hintText: 'Search profiles...',
                                   hintStyle: TextStyle(color: subtextColor),
-                                  prefixIcon: Icon(Icons.search, color: subtextColor),
+                                  prefixIcon: Icon(
+                                    Icons.search,
+                                    color: subtextColor,
+                                  ),
                                   suffixIcon: _searchTerm.isNotEmpty
                                       ? IconButton(
-                                          icon: Icon(Icons.close, size: 20, color: subtextColor),
+                                          icon: Icon(
+                                            Icons.close,
+                                            size: 20,
+                                            color: subtextColor,
+                                          ),
                                           onPressed: () {
                                             _searchController.clear();
                                             setState(() {
@@ -484,7 +798,10 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
                                         )
                                       : null,
                                   border: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
                                 ),
                                 onChanged: (value) {
                                   setState(() => _searchTerm = value);
@@ -497,7 +814,9 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
                           Expanded(
                             flex: 1,
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
                               decoration: BoxDecoration(
                                 color: cardBg,
                                 borderRadius: BorderRadius.circular(8),
@@ -518,7 +837,10 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
                                       child: Text(
                                         type,
                                         overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(fontSize: 13, color: textColor),
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: textColor,
+                                        ),
                                       ),
                                     );
                                   }).toList(),
@@ -554,15 +876,36 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
                             value: _sortBy,
                             dropdownColor: cardBg,
                             isExpanded: true,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: textColor,
-                            ),
+                            style: TextStyle(fontSize: 14, color: textColor),
                             items: [
-                              DropdownMenuItem(value: 'name-asc', child: Text('Name (A-Z)', style: TextStyle(color: textColor))),
-                              DropdownMenuItem(value: 'name-desc', child: Text('Name (Z-A)', style: TextStyle(color: textColor))),
-                              DropdownMenuItem(value: 'type', child: Text('Profile Type', style: TextStyle(color: textColor))),
-                              DropdownMenuItem(value: 'status', child: Text('Status', style: TextStyle(color: textColor))),
+                              DropdownMenuItem(
+                                value: 'name-asc',
+                                child: Text(
+                                  'Name (A-Z)',
+                                  style: TextStyle(color: textColor),
+                                ),
+                              ),
+                              DropdownMenuItem(
+                                value: 'name-desc',
+                                child: Text(
+                                  'Name (Z-A)',
+                                  style: TextStyle(color: textColor),
+                                ),
+                              ),
+                              DropdownMenuItem(
+                                value: 'type',
+                                child: Text(
+                                  'Profile Type',
+                                  style: TextStyle(color: textColor),
+                                ),
+                              ),
+                              DropdownMenuItem(
+                                value: 'status',
+                                child: Text(
+                                  'Status',
+                                  style: TextStyle(color: textColor),
+                                ),
+                              ),
                             ],
                             onChanged: (value) {
                               if (value != null) {
@@ -645,7 +988,10 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: const Color(0xFF0d6efd),
                                       foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 24,
+                                        vertical: 12,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -660,36 +1006,49 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
                             Responsive.getPadding(context),
                             16,
                           ),
-                          sliver: Responsive.isTablet(context) || Responsive.isLargeTablet(context)
+                          sliver:
+                              Responsive.isTablet(context) ||
+                                  Responsive.isLargeTablet(context)
                               ? SliverGrid(
-                                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: Responsive.getCrossAxisCount(
-                                      context,
-                                      phonePortrait: 1,
-                                      phoneLandscape: 2,
-                                      tabletPortrait: 2,
-                                      tabletLandscape: 3,
-                                    ),
-                                    childAspectRatio: Responsive.isLandscape(context) ? 2.5 : 2.0,
-                                    crossAxisSpacing: Responsive.getSpacing(context, 12),
-                                    mainAxisSpacing: Responsive.getSpacing(context, 12),
-                                  ),
-                                  delegate: SliverChildBuilderDelegate(
-                                    (context, index) {
-                                      final profile = _filteredProfiles[index];
-                                      return _buildProfileCard(profile);
-                                    },
-                                    childCount: _filteredProfiles.length,
-                                  ),
+                                  gridDelegate:
+                                      SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount:
+                                            Responsive.getCrossAxisCount(
+                                              context,
+                                              phonePortrait: 1,
+                                              phoneLandscape: 2,
+                                              tabletPortrait: 2,
+                                              tabletLandscape: 3,
+                                            ),
+                                        childAspectRatio:
+                                            Responsive.isLandscape(context)
+                                            ? 2.5
+                                            : 2.0,
+                                        crossAxisSpacing: Responsive.getSpacing(
+                                          context,
+                                          12,
+                                        ),
+                                        mainAxisSpacing: Responsive.getSpacing(
+                                          context,
+                                          12,
+                                        ),
+                                      ),
+                                  delegate: SliverChildBuilderDelegate((
+                                    context,
+                                    index,
+                                  ) {
+                                    final profile = _filteredProfiles[index];
+                                    return _buildProfileCard(profile);
+                                  }, childCount: _filteredProfiles.length),
                                 )
                               : SliverList(
-                                  delegate: SliverChildBuilderDelegate(
-                                    (context, index) {
-                                      final profile = _filteredProfiles[index];
-                                      return _buildProfileCard(profile);
-                                    },
-                                    childCount: _filteredProfiles.length,
-                                  ),
+                                  delegate: SliverChildBuilderDelegate((
+                                    context,
+                                    index,
+                                  ) {
+                                    final profile = _filteredProfiles[index];
+                                    return _buildProfileCard(profile);
+                                  }, childCount: _filteredProfiles.length),
                                 ),
                         ),
                 ],
@@ -703,16 +1062,24 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
     final bgColor = profile['bgColor'] as Color;
     final photoUrl = profile['photo_url'];
     final fullPhotoUrl = TypeHelpers.getFullImageUrl(photoUrl?.toString());
-    
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF242424) : Colors.white;
-    final textColor = isDark ? const Color(0xFFF8F9FA) : const Color(0xFF212529);
-    final subtitleColor = isDark ? const Color(0xFFADB5BD) : const Color(0xFF6C757D);
-    final borderColor = isDark ? const Color(0xFF404040) : const Color(0xFFDEE2E6);
+    final textColor = isDark
+        ? const Color(0xFFF8F9FA)
+        : const Color(0xFF212529);
+    final subtitleColor = isDark
+        ? const Color(0xFFADB5BD)
+        : const Color(0xFF6C757D);
+    final borderColor = isDark
+        ? const Color(0xFF404040)
+        : const Color(0xFFDEE2E6);
 
     // Count documents for this profile
     final profileId = profile['id'];
-    final documentCount = _documents.where((doc) => doc['profile_id'] == profileId).length;
+    final documentCount = _documents
+        .where((doc) => doc['profile_id']?.toString() == profileId?.toString())
+        .length;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -725,116 +1092,114 @@ class _ProfilesScreenState extends State<ProfilesScreen> with AutomaticKeepAlive
         color: Colors.transparent,
         child: ListTile(
           contentPadding: const EdgeInsets.all(16),
-        leading: Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(28),
-          ),
-          child: fullPhotoUrl.isNotEmpty
-              ? ClipRRect(
-                  borderRadius: BorderRadius.circular(28),
-                  child: Image.network(
-                    fullPhotoUrl,
-                    width: 56,
-                    height: 56,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Center(
-                        child: Text(
-                          profile['initials'] ?? '??',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            color: textColor,
+          leading: Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: fullPhotoUrl.isNotEmpty
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(28),
+                    child: Image.network(
+                      fullPhotoUrl,
+                      width: 56,
+                      height: 56,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Center(
+                          child: Text(
+                            profile['initials'] ?? '??',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w600,
+                              color: textColor,
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-                )
-              : Center(
-                  child: Text(
-                    profile['initials'] ?? '??',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                      color: textColor,
+                        );
+                      },
+                    ),
+                  )
+                : Center(
+                    child: Text(
+                      profile['initials'] ?? '??',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
                     ),
                   ),
-                ),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              profile['full_name'] ?? 'Unknown',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
-                color: textColor,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    profile['document_number'] != null && profile['document_number'].toString().isNotEmpty
-                        ? profile['document_number'].toString()
-                        : profile['nationality'] ?? '',
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: subtitleColor,
-                    ),
-                  ),
-                ),
-                if (documentCount > 0) ...[
-                  Text(' • ', style: TextStyle(color: subtitleColor)),
-                  Icon(Icons.description, size: 14, color: subtitleColor),
-                  const SizedBox(width: 4),
-                  Text(
-                    '$documentCount doc${documentCount > 1 ? 's' : ''}',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: subtitleColor,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ],
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: _getStatusColor(status).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                status,
+          ),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                profile['full_name'] ?? 'Unknown',
                 style: TextStyle(
-                  color: _getStatusColor(status),
-                  fontSize: 12,
                   fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                  color: textColor,
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Icon(
-              Icons.chevron_right,
-              color: subtitleColor,
-            ),
-          ],
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      profile['document_number'] != null &&
+                              profile['document_number'].toString().isNotEmpty
+                          ? profile['document_number'].toString()
+                          : profile['nationality'] ?? '',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 14, color: subtitleColor),
+                    ),
+                  ),
+                  if (documentCount > 0) ...[
+                    Text(' • ', style: TextStyle(color: subtitleColor)),
+                    Icon(Icons.description, size: 14, color: subtitleColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$documentCount doc${documentCount > 1 ? 's' : ''}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: subtitleColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: _getStatusColor(status).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  status,
+                  style: TextStyle(
+                    color: _getStatusColor(status),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right, color: subtitleColor),
+            ],
+          ),
+          onTap: () => _showProfileDetails(TypeHelpers.toMap(profile)),
         ),
-        onTap: () => _showProfileDetails(TypeHelpers.toMap(profile)),
-      ),
       ),
     );
   }

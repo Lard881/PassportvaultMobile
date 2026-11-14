@@ -6,7 +6,9 @@ import '../../services/api_service.dart';
 import '../../widgets/skeleton_loader.dart';
 
 class SecureSharingScreen extends StatefulWidget {
-  const SecureSharingScreen({super.key});
+  final String? initialDocumentId;
+
+  const SecureSharingScreen({super.key, this.initialDocumentId});
 
   @override
   State<SecureSharingScreen> createState() => _SecureSharingScreenState();
@@ -14,6 +16,7 @@ class SecureSharingScreen extends StatefulWidget {
 
 class _SecureSharingScreenState extends State<SecureSharingScreen> {
   bool _isLoading = true;
+  bool _initialShareHandled = false;
   List<dynamic> _documents = [];
   List<dynamic> _shares = [];
 
@@ -35,7 +38,7 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
       if (results[0]['success'] == true) {
         _documents = results[0]['data'] ?? [];
       }
-      
+
       if (results[1]['success'] == true) {
         _shares = results[1]['data'] ?? [];
       }
@@ -51,12 +54,36 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+        final initialDocumentId = widget.initialDocumentId;
+        if (!_initialShareHandled && initialDocumentId != null) {
+          _initialShareHandled = true;
+          final matchingDocuments = _documents
+              .where(
+                (document) => document['id']?.toString() == initialDocumentId,
+              )
+              .toList();
+          if (matchingDocuments.isNotEmpty) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                _showShareModal(matchingDocuments.first);
+              }
+            });
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('The selected document could not be found'),
+              ),
+            );
+          }
+        }
       }
     }
   }
 
   List<dynamic> get _activeShares {
-    return _shares.where((s) => s['is_active'] == true && s['is_expired'] != true).toList();
+    return _shares
+        .where((s) => s['is_active'] == true && s['is_expired'] != true)
+        .toList();
   }
 
   Future<void> _showShareModal(dynamic document) async {
@@ -64,10 +91,8 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _ShareModal(
-        document: document,
-        onShareCreated: _fetchData,
-      ),
+      builder: (context) =>
+          _ShareModal(document: document, onShareCreated: _fetchData),
     );
   }
 
@@ -86,7 +111,9 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFFdc3545)),
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFdc3545),
+            ),
             child: const Text('Revoke'),
           ),
         ],
@@ -100,9 +127,9 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
       if (shareId == null || shareId.isEmpty) {
         throw Exception('Invalid share ID');
       }
-      
+
       final response = await ApiService.revokeShare(shareId);
-      
+
       if (response['success'] == true) {
         // Optimistically update local list
         setState(() {
@@ -139,9 +166,9 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
 
   void _copyLink(String url) {
     Clipboard.setData(ClipboardData(text: url));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Link copied to clipboard!')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Link copied to clipboard!')));
   }
 
   void _shareNative(dynamic share) {
@@ -153,8 +180,10 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
   void _shareWhatsApp(dynamic share) async {
     final url = share['share_url'];
     final text = 'Check out this shared document: ${share['document_name']}';
-    final whatsappUrl = Uri.parse('https://wa.me/?text=${Uri.encodeComponent('$text $url')}');
-    
+    final whatsappUrl = Uri.parse(
+      'https://wa.me/?text=${Uri.encodeComponent('$text $url')}',
+    );
+
     if (await canLaunchUrl(whatsappUrl)) {
       await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
     }
@@ -163,9 +192,12 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
   void _shareEmail(dynamic share) async {
     final url = share['share_url'];
     final subject = 'Shared Document: ${share['document_name']}';
-    final body = 'I\'m sharing a document with you:\n\n${share['document_name']}\n${share['document_type']}\n\nAccess it here: $url';
-    final emailUrl = Uri.parse('mailto:?subject=${Uri.encodeComponent(subject)}&body=${Uri.encodeComponent(body)}');
-    
+    final body =
+        'I\'m sharing a document with you:\n\n${share['document_name']}\n${share['document_type']}\n\nAccess it here: $url';
+    final emailUrl = Uri.parse(
+      'mailto:?subject=${Uri.encodeComponent(subject)}&body=${Uri.encodeComponent(body)}',
+    );
+
     if (await canLaunchUrl(emailUrl)) {
       await launchUrl(emailUrl);
     }
@@ -174,8 +206,10 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
   void _shareTelegram(dynamic share) async {
     final url = share['share_url'];
     final text = 'Check out this shared document: ${share['document_name']}';
-    final telegramUrl = Uri.parse('https://t.me/share/url?url=${Uri.encodeComponent(url)}&text=${Uri.encodeComponent(text)}');
-    
+    final telegramUrl = Uri.parse(
+      'https://t.me/share/url?url=${Uri.encodeComponent(url)}&text=${Uri.encodeComponent(text)}',
+    );
+
     if (await canLaunchUrl(telegramUrl)) {
       await launchUrl(telegramUrl, mode: LaunchMode.externalApplication);
     }
@@ -196,9 +230,9 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final scaffoldBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     final appBarBg = isDark ? const Color(0xFF242424) : Colors.white;
-    final textColor = isDark ? const Color(0xFFF8F9FA) : const Color(0xFF212529);
-    final subtitleColor = isDark ? const Color(0xFFADB5BD) : const Color(0xFF6c757d);
-    
+    final textColor = isDark
+        ? const Color(0xFFF8F9FA)
+        : const Color(0xFF212529);
     return Scaffold(
       backgroundColor: scaffoldBg,
       appBar: AppBar(
@@ -253,7 +287,11 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
                       ),
                       child: const Row(
                         children: [
-                          Icon(Icons.verified_user, color: Colors.white, size: 24),
+                          Icon(
+                            Icons.verified_user,
+                            color: Colors.white,
+                            size: 24,
+                          ),
                           SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -295,7 +333,9 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
-                          color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFFF8F9FA) : const Color(0xFF212529),
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFFF8F9FA)
+                              : const Color(0xFF212529),
                         ),
                       ),
                     ),
@@ -310,19 +350,29 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
                         margin: const EdgeInsets.symmetric(horizontal: 16),
                         padding: const EdgeInsets.all(32),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF242424) : const Color(0xFFF8F9FA),
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF242424)
+                              : const Color(0xFFF8F9FA),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Column(
                           children: [
-                            Icon(Icons.share, size: 48, color: Colors.grey[400]),
+                            Icon(
+                              Icons.share,
+                              size: 48,
+                              color: Colors.grey[400],
+                            ),
                             const SizedBox(height: 12),
                             Text(
                               'No active shares',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
-                                color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFFF8F9FA) : const Color(0xFF6c757d),
+                                color:
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFFF8F9FA)
+                                    : const Color(0xFF6c757d),
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -330,7 +380,11 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
                               'Create a share link to see it here',
                               style: TextStyle(
                                 fontSize: 14,
-                                color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFFADB5BD) : const Color(0xFF6c757d),
+                                color:
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFFADB5BD)
+                                    : const Color(0xFF6c757d),
                               ),
                             ),
                           ],
@@ -341,13 +395,10 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
                     SliverPadding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       sliver: SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final share = _activeShares[index];
-                            return _buildShareCard(share);
-                          },
-                          childCount: _activeShares.length,
-                        ),
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final share = _activeShares[index];
+                          return _buildShareCard(share);
+                        }, childCount: _activeShares.length),
                       ),
                     ),
 
@@ -362,7 +413,9 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
-                          color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFFF8F9FA) : const Color(0xFF212529),
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFFF8F9FA)
+                              : const Color(0xFF212529),
                         ),
                       ),
                     ),
@@ -377,19 +430,29 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
                         margin: const EdgeInsets.symmetric(horizontal: 16),
                         padding: const EdgeInsets.all(32),
                         decoration: BoxDecoration(
-                          color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF242424) : const Color(0xFFF8F9FA),
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF242424)
+                              : const Color(0xFFF8F9FA),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Column(
                           children: [
-                            Icon(Icons.description, size: 48, color: Colors.grey[400]),
+                            Icon(
+                              Icons.description,
+                              size: 48,
+                              color: Colors.grey[400],
+                            ),
                             const SizedBox(height: 12),
                             Text(
                               'No documents to share',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
-                                color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFFF8F9FA) : const Color(0xFF6c757d),
+                                color:
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFFF8F9FA)
+                                    : const Color(0xFF6c757d),
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -397,7 +460,11 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
                               'Upload documents first to share them',
                               style: TextStyle(
                                 fontSize: 14,
-                                color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFFADB5BD) : const Color(0xFF6c757d),
+                                color:
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFFADB5BD)
+                                    : const Color(0xFF6c757d),
                               ),
                             ),
                           ],
@@ -408,13 +475,10 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
                     SliverPadding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       sliver: SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final doc = _documents[index];
-                            return _buildDocumentCard(doc);
-                          },
-                          childCount: _documents.length,
-                        ),
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final doc = _documents[index];
+                          return _buildDocumentCard(doc);
+                        }, childCount: _documents.length),
                       ),
                     ),
 
@@ -429,9 +493,15 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF242424) : Colors.white;
     final innerBg = isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF8F9FA);
-    final textColor = isDark ? const Color(0xFFF8F9FA) : const Color(0xFF212529);
-    final subtitleColor = isDark ? const Color(0xFFADB5BD) : const Color(0xFF6C757D);
-    final borderColor = isDark ? const Color(0xFF404040) : const Color(0xFFDEE2E6);
+    final textColor = isDark
+        ? const Color(0xFFF8F9FA)
+        : const Color(0xFF212529);
+    final subtitleColor = isDark
+        ? const Color(0xFFADB5BD)
+        : const Color(0xFF6C757D);
+    final borderColor = isDark
+        ? const Color(0xFF404040)
+        : const Color(0xFFDEE2E6);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -462,10 +532,7 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
                     const SizedBox(height: 4),
                     Text(
                       share['document_type'] ?? 'Document',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: subtitleColor,
-                      ),
+                      style: TextStyle(fontSize: 14, color: subtitleColor),
                     ),
                   ],
                 ),
@@ -501,7 +568,8 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
                 _buildDetailRow(
                   icon: Icons.visibility,
                   label: 'Views:',
-                  value: '${share['view_count']}${share['max_views'] != null ? ' / ${share['max_views']}' : ' (unlimited)'}',
+                  value:
+                      '${share['view_count']}${share['max_views'] != null ? ' / ${share['max_views']}' : ' (unlimited)'}',
                 ),
                 if (share['expires_at'] != null) ...[
                   const SizedBox(height: 8),
@@ -517,7 +585,9 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
                     icon: Icons.hourglass_empty,
                     label: 'Remaining:',
                     value: '${share['views_remaining']} views',
-                    valueColor: (share['views_remaining'] as int) < 3 ? const Color(0xFFdc3545) : null,
+                    valueColor: (share['views_remaining'] as int) < 3
+                        ? const Color(0xFFdc3545)
+                        : null,
                   ),
                 ],
               ],
@@ -626,9 +696,15 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
   Widget _buildDocumentCard(dynamic document) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF242424) : Colors.white;
-    final textColor = isDark ? const Color(0xFFF8F9FA) : const Color(0xFF212529);
-    final subtitleColor = isDark ? const Color(0xFFADB5BD) : const Color(0xFF6C757D);
-    final borderColor = isDark ? const Color(0xFF404040) : const Color(0xFFDEE2E6);
+    final textColor = isDark
+        ? const Color(0xFFF8F9FA)
+        : const Color(0xFF212529);
+    final subtitleColor = isDark
+        ? const Color(0xFFADB5BD)
+        : const Color(0xFF6C757D);
+    final borderColor = isDark
+        ? const Color(0xFF404040)
+        : const Color(0xFFDEE2E6);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -650,10 +726,7 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
         ),
         title: Text(
           document['document_name'] ?? 'Unnamed Document',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: textColor,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w600, color: textColor),
         ),
         subtitle: Text(
           document['document_type'] ?? 'Document',
@@ -681,8 +754,12 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
     Color? valueColor,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final labelColor = isDark ? const Color(0xFFADB5BD) : const Color(0xFF6C757D);
-    final textColor = isDark ? const Color(0xFFF8F9FA) : const Color(0xFF212529);
+    final labelColor = isDark
+        ? const Color(0xFFADB5BD)
+        : const Color(0xFF6C757D);
+    final textColor = isDark
+        ? const Color(0xFFF8F9FA)
+        : const Color(0xFF212529);
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -691,10 +768,7 @@ class _SecureSharingScreenState extends State<SecureSharingScreen> {
           children: [
             Icon(icon, size: 16, color: labelColor),
             const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(fontSize: 13, color: labelColor),
-            ),
+            Text(label, style: TextStyle(fontSize: 13, color: labelColor)),
           ],
         ),
         Text(
@@ -743,10 +817,7 @@ class _ShareModal extends StatefulWidget {
   final Map<String, dynamic> document;
   final VoidCallback onShareCreated;
 
-  const _ShareModal({
-    required this.document,
-    required this.onShareCreated,
-  });
+  const _ShareModal({required this.document, required this.onShareCreated});
 
   @override
   State<_ShareModal> createState() => _ShareModalState();
@@ -782,10 +853,9 @@ class _ShareModalState extends State<_ShareModal> {
         'max_views': _limitViews && _maxViewsController.text.isNotEmpty
             ? int.tryParse(_maxViewsController.text)
             : null,
-        'password':
-            _requirePassword && _passwordController.text.isNotEmpty
-                ? _passwordController.text
-                : null,
+        'password': _requirePassword && _passwordController.text.isNotEmpty
+            ? _passwordController.text
+            : null,
       };
 
       final response = await ApiService.createShare(shareData);
@@ -854,8 +924,12 @@ class _ShareModalState extends State<_ShareModal> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final modalBg = isDark ? const Color(0xFF242424) : Colors.white;
-    final textColor = isDark ? const Color(0xFFF8F9FA) : const Color(0xFF212529);
-    final subtitleColor = isDark ? const Color(0xFFADB5BD) : const Color(0xFF6C757D);
+    final textColor = isDark
+        ? const Color(0xFFF8F9FA)
+        : const Color(0xFF212529);
+    final subtitleColor = isDark
+        ? const Color(0xFFADB5BD)
+        : const Color(0xFF6C757D);
 
     return Container(
       decoration: BoxDecoration(
@@ -889,10 +963,7 @@ class _ShareModalState extends State<_ShareModal> {
                       const SizedBox(height: 4),
                       Text(
                         widget.document['document_name'] ?? 'Document',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: subtitleColor,
-                        ),
+                        style: TextStyle(fontSize: 14, color: subtitleColor),
                       ),
                     ],
                   ),
@@ -907,8 +978,14 @@ class _ShareModalState extends State<_ShareModal> {
 
             // Password Protection
             SwitchListTile(
-              title: Text('Password Protection', style: TextStyle(color: textColor, fontWeight: FontWeight.w500)),
-              subtitle: Text('Require a password to access', style: TextStyle(color: subtitleColor)),
+              title: Text(
+                'Password Protection',
+                style: TextStyle(color: textColor, fontWeight: FontWeight.w500),
+              ),
+              subtitle: Text(
+                'Require a password to access',
+                style: TextStyle(color: subtitleColor),
+              ),
               value: _requirePassword,
               onChanged: (value) {
                 setState(() {
@@ -938,8 +1015,14 @@ class _ShareModalState extends State<_ShareModal> {
 
             // Expiration Date
             SwitchListTile(
-              title: Text('Set Expiration', style: TextStyle(color: textColor, fontWeight: FontWeight.w500)),
-              subtitle: Text('Link expires after date', style: TextStyle(color: subtitleColor)),
+              title: Text(
+                'Set Expiration',
+                style: TextStyle(color: textColor, fontWeight: FontWeight.w500),
+              ),
+              subtitle: Text(
+                'Link expires after date',
+                style: TextStyle(color: subtitleColor),
+              ),
               value: _setExpiration,
               onChanged: (value) {
                 setState(() {
@@ -967,8 +1050,14 @@ class _ShareModalState extends State<_ShareModal> {
 
             // View Limit
             SwitchListTile(
-              title: Text('Limit Views', style: TextStyle(color: textColor, fontWeight: FontWeight.w500)),
-              subtitle: Text('Maximum number of views', style: TextStyle(color: subtitleColor)),
+              title: Text(
+                'Limit Views',
+                style: TextStyle(color: textColor, fontWeight: FontWeight.w500),
+              ),
+              subtitle: Text(
+                'Maximum number of views',
+                style: TextStyle(color: subtitleColor),
+              ),
               value: _limitViews,
               onChanged: (value) {
                 setState(() {
@@ -1018,11 +1107,18 @@ class _ShareModalState extends State<_ShareModal> {
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
                         ),
                       )
-                    : const Text('Create Share Link', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    : const Text(
+                        'Create Share Link',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
               ),
             ),
           ],
