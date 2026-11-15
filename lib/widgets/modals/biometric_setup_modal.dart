@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/biometric_auth_service.dart';
 
 class BiometricSetupModal extends StatefulWidget {
   final Function(String method, {String? pin}) onSubmit;
@@ -19,6 +20,25 @@ class _BiometricSetupModalState extends State<BiometricSetupModal> {
   bool _obscurePin = true;
   bool _obscureConfirmPin = true;
   String? _pinError;
+  bool _checkingDeviceUnlock = true;
+  bool _deviceUnlockAvailable = false;
+  String? _deviceUnlockMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkDeviceUnlock();
+  }
+
+  Future<void> _checkDeviceUnlock() async {
+    final result = await biometricAuthService.isAvailable();
+    if (!mounted) return;
+    setState(() {
+      _checkingDeviceUnlock = false;
+      _deviceUnlockAvailable = result['available'] == true;
+      _deviceUnlockMessage = result['message'] ?? result['reason'];
+    });
+  }
 
   @override
   void dispose() {
@@ -56,6 +76,16 @@ class _BiometricSetupModalState extends State<BiometricSetupModal> {
       widget.onSubmit('pin', pin: pin);
       Navigator.of(context).pop();
     } else {
+      if (_checkingDeviceUnlock || !_deviceUnlockAvailable) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _deviceUnlockMessage ?? 'Device unlock is not available on this device.',
+            ),
+          ),
+        );
+        return;
+      }
       widget.onSubmit('biometric');
       Navigator.of(context).pop();
     }
@@ -135,8 +165,8 @@ class _BiometricSetupModalState extends State<BiometricSetupModal> {
                     // Biometric Option (Fingerprint / Face ID / Recognition)
                     _buildSecurityOption(
                       icon: Icons.fingerprint,
-                      title: 'Biometric Authentication',
-                      description: 'Fingerprint, Face ID, or Face Recognition unlock',
+                      title: 'Device unlock',
+                      description: 'Face ID, fingerprint, or device passcode',
                       value: 'biometric',
                       isSelected: _selectedMethod == 'biometric',
                       isDark: isDark,
@@ -151,13 +181,30 @@ class _BiometricSetupModalState extends State<BiometricSetupModal> {
                         });
                       },
                     ),
+                    if (_selectedMethod == 'biometric') ...[
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Text(
+                          _checkingDeviceUnlock
+                              ? 'Checking device unlock support...'
+                              : _deviceUnlockMessage ?? '',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: _deviceUnlockAvailable
+                                ? subtitleColor
+                                : const Color(0xFFdc3545),
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     
                     // PIN Option
                     _buildSecurityOption(
                       icon: Icons.pin,
-                      title: 'PIN Code',
-                      description: 'Set a 4 to 8 digit secure numeric PIN',
+                      title: 'App PIN',
+                      description: 'Create a separate 4 to 8 digit fallback PIN',
                       value: 'pin',
                       isSelected: _selectedMethod == 'pin',
                       isDark: isDark,

@@ -629,14 +629,27 @@ class ApiService {
   static Future<Map<String, dynamic>> updateSettings(
     Map<String, dynamic> settings,
   ) async {
-    final payload = {
-      'push_notifications': settings['push_notifications'] ?? settings['pushNotifications'] ?? false,
-      'expiry_reminders': settings['expiry_reminders'] ?? settings['expiryReminders'] ?? true,
-      'auto_backup': settings['auto_backup'] ?? settings['autoBackup'] ?? false,
-      'biometric_auth': settings['biometric_auth'] ?? settings['biometricAuth'] ?? false,
-      'biometric_method': settings['biometric_method'] ?? settings['biometricMethod'] ?? 'none',
-      'language': settings['language'] ?? 'English',
+    const settingAliases = {
+      'push_notifications': 'pushNotifications',
+      'expiry_reminders': 'expiryReminders',
+      'auto_backup': 'autoBackup',
+      'biometric_auth': 'biometricAuth',
+      'biometric_method': 'biometricMethod',
+      'language': 'language',
     };
+    final payload = <String, dynamic>{};
+    for (final entry in settingAliases.entries) {
+      if (settings.containsKey(entry.key)) {
+        payload[entry.key] = settings[entry.key];
+      } else if (settings.containsKey(entry.value)) {
+        payload[entry.key] = settings[entry.value];
+      }
+    }
+
+    if (payload.isEmpty) {
+      throw ArgumentError('At least one supported setting is required.');
+    }
+
     final response = await _makeRequest('PUT', '/settings', body: payload);
     if (response['success'] == true) return response;
     return {'success': true, 'message': 'Settings updated locally'};

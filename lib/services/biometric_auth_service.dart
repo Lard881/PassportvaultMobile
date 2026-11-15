@@ -4,9 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 
-/// Biometric Authentication Service
-/// Uses local_auth for fingerprint, Face ID, Touch ID
-/// Falls back to PIN authentication if biometrics not available
+/// Device-local app lock using the operating system's authentication prompt.
 class BiometricAuthService {
   static const String _storageKey = 'pv_biometric_enabled';
   static const String _pinKey = 'pv_pin_hash';
@@ -17,13 +15,12 @@ class BiometricAuthService {
   /// Check if biometric authentication is available on this device
   Future<Map<String, dynamic>> isAvailable() async {
     try {
-      final bool canCheckBiometrics = await _localAuth.canCheckBiometrics;
       final bool isDeviceSupported = await _localAuth.isDeviceSupported();
 
-      if (!canCheckBiometrics || !isDeviceSupported) {
+      if (!isDeviceSupported) {
         return {
           'available': false,
-          'reason': 'Biometric hardware not available',
+          'reason': 'This device does not support system authentication.',
           'fallback': 'pin'
         };
       }
@@ -31,34 +28,25 @@ class BiometricAuthService {
       final List<BiometricType> availableBiometrics =
           await _localAuth.getAvailableBiometrics();
 
-      if (availableBiometrics.isEmpty) {
-        return {
-          'available': false,
-          'reason': 'No biometric methods enrolled',
-          'fallback': 'pin'
-        };
-      }
-
-      String biometricType = 'biometric';
+      String deviceUnlockType = 'device passcode';
       if (availableBiometrics.contains(BiometricType.face)) {
-        biometricType = 'Face ID';
+        deviceUnlockType = 'Face ID or device passcode';
       } else if (availableBiometrics.contains(BiometricType.fingerprint)) {
-        biometricType = 'Fingerprint';
+        deviceUnlockType = 'fingerprint or device passcode';
       } else if (availableBiometrics.contains(BiometricType.iris)) {
-        biometricType = 'Iris';
+        deviceUnlockType = 'biometric or device passcode';
       }
 
       return {
         'available': true,
-        'type': 'biometric',
-        'biometricType': biometricType,
-        'message':
-            'Device supports $biometricType authentication'
+        'type': 'device',
+        'biometricType': deviceUnlockType,
+        'message': 'Use $deviceUnlockType to unlock PassportVault.'
       };
     } catch (e) {
       return {
         'available': false,
-        'reason': 'Error checking biometric support: $e',
+        'reason': 'Could not check device authentication support: $e',
         'fallback': 'pin'
       };
     }
@@ -79,9 +67,8 @@ class BiometricAuthService {
         };
       }
 
-      // Test device authentication (Biometric or PIN/Passcode fallback)
       final bool authenticated = await _localAuth.authenticate(
-        localizedReason: 'Enable device authentication for PassportVault',
+        localizedReason: 'Confirm your device unlock to protect PassportVault',
         options: const AuthenticationOptions(
           stickyAuth: true,
           biometricOnly: false,
@@ -95,10 +82,13 @@ class BiometricAuthService {
 
         return {
           'success': true,
-          'message': 'Device authentication enabled successfully'
+          'message': 'Device unlock enabled for this device.'
         };
       } else {
-        return {'success': false, 'message': 'Device authentication failed'};
+        return {
+          'success': false,
+          'message': 'Setup was cancelled. You can try again or use an app PIN.'
+        };
       }
     } on PlatformException catch (e) {
       if (e.code == 'NotAvailable') {
@@ -110,7 +100,7 @@ class BiometricAuthService {
         return {
           'success': false,
           'message':
-              'No biometrics or device PIN set up. Please set up screen lock in device settings.'
+              'Set up Face ID, fingerprint, or a device passcode in system settings first.'
         };
       } else if (e.code == 'LockedOut') {
         return {
@@ -127,7 +117,7 @@ class BiometricAuthService {
     }
   }
 
-  /// Authenticate using biometric or device credential (PIN/Passcode/Face ID/Fingerprint)
+  /// Authenticate using the operating system's biometric or device-credential prompt.
   Future<Map<String, dynamic>> authenticateBiometric() async {
     try {
       isAuthenticating = true;
@@ -142,13 +132,13 @@ class BiometricAuthService {
       if (authenticated) {
         return {
           'success': true,
-          'message': 'Authentication successful',
+          'message': 'Device unlock successful.',
           'authenticated': true
         };
       } else {
         return {
           'success': false,
-          'message': 'Authentication failed'
+          'message': 'Unlock was cancelled. Try again or use your device passcode.'
         };
       }
     } on PlatformException catch (e) {
@@ -160,7 +150,7 @@ class BiometricAuthService {
       } else if (e.code == 'NotEnrolled') {
         return {
           'success': false,
-          'message': 'No biometrics or PIN set up on device'
+          'message': 'Set up a device passcode or biometric method in system settings.'
         };
       } else if (e.code == 'LockedOut' || e.code == 'PermanentlyLockedOut') {
         return {

@@ -46,8 +46,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (response['success'] == true && response['data'] != null) {
         final settings = response['data'];
         setState(() {
-          _biometricEnabled = settings['biometric_auth'] ?? false;
-          _authMethod = settings['biometric_method'] ?? 'none';
           
           final backendLang = settings['language']?.toString() ?? 'English';
           final validLanguages = ['English', 'Spanish', 'French', 'German', 'Chinese', 'Arabic', 'Korean'];
@@ -55,11 +53,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         });
       }
 
-      // Check local biometric / PIN state
+      // App-lock enrollment belongs to this device, not the user account.
       final localMethod = await biometricAuthService.getAuthMethod();
-      if (localMethod != 'none') {
+      if (mounted) {
         setState(() {
-          _biometricEnabled = true;
+          _biometricEnabled = localMethod != 'none';
           _authMethod = localMethod;
         });
       }
@@ -73,14 +71,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _updateSetting(String key, dynamic value) async {
+    if (key != 'language') return;
+
     try {
-      final settings = {
-        'biometric_auth': _biometricEnabled,
-        'biometric_method': _authMethod,
-        'language': _language,
-      };
-      settings[key] = value;
-      await ApiService.updateSettings(settings);
+      await ApiService.updateSettings({'language': value});
     } catch (error) {
       debugPrint('[SettingsScreen] Failed to sync setting to backend: $error');
     }
@@ -88,7 +82,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _getAuthMethodLabel() {
     if (_authMethod == 'biometric' || _authMethod == 'true') {
-      return 'Device Unlock (Face ID / Fingerprint / PIN)';
+      return 'Device unlock on this device';
     } else if (_authMethod == 'pin') {
       return 'PIN Authentication';
     }
@@ -103,12 +97,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _biometricEnabled = true;
           _authMethod = 'biometric';
         });
-        await _updateSetting('biometric_auth', true);
-        await _updateSetting('biometric_method', 'biometric');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Device authentication enabled'),
+              content: Text('Device unlock enabled on this device'),
               backgroundColor: Color(0xFF198754),
             ),
           );
@@ -163,8 +155,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _biometricEnabled = false;
         _authMethod = 'none';
       });
-      await _updateSetting('biometric_auth', false);
-      await _updateSetting('biometric_method', 'none');
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -210,13 +200,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         });
       }
       
-      await _updateSetting('biometric_auth', true);
-      await _updateSetting('biometric_method', method);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${method == 'pin' ? 'PIN' : 'Biometric'} authentication enabled! App will lock when you close it.'),
+            content: Text('${method == 'pin' ? 'App PIN' : 'Device unlock'} enabled on this device.'),
             backgroundColor: Colors.green,
           ),
         );
@@ -474,10 +462,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(height: 12),
               _buildCardSwitchTile(
-                localeProvider.tr('biometric_pin_auth'),
-                _biometricEnabled 
-                  ? _getAuthMethodLabel()
-                  : localeProvider.tr('use_fingerprint_face'),
+                'App lock',
+                _biometricEnabled
+                    ? _getAuthMethodLabel()
+                    : 'Choose device unlock or an app PIN. This setting stays on this device.',
                 _biometricEnabled,
                 _handleBiometricToggle,
                 textColor,
