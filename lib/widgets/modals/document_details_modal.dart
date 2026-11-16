@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../config/app_theme.dart';
+import '../../services/api_service.dart';
 
 class DocumentDetailsModal extends StatelessWidget {
   final Map<String, dynamic> document;
@@ -60,27 +62,24 @@ class DocumentDetailsModal extends StatelessWidget {
   }
 
   Future<void> _openDocument(BuildContext context) async {
-    final fileUrl = document['file_url'];
-    if (fileUrl != null && fileUrl.toString().isNotEmpty) {
-      try {
-        final uri = Uri.parse(fileUrl.toString());
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        } else {
-          await launchUrl(uri, mode: LaunchMode.platformDefault);
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not open document: $e')),
-          );
-        }
+    try {
+      final response = await ApiService.getDocumentSignedUrl(document['id']);
+      final signedUrl = response['data']?['signedUrl'];
+      if (signedUrl is! String || signedUrl.isEmpty) {
+        throw Exception('Could not create a secure document link');
       }
-    } else {
+
+      final uri = Uri.parse(signedUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        throw Exception('No app is available to open this document');
+      }
+    } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No file URL available for this document')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not open document: $e')));
       }
     }
   }
@@ -89,53 +88,69 @@ class DocumentDetailsModal extends StatelessWidget {
   Widget build(BuildContext context) {
     final status = document['status'] ?? 'Valid';
     final documentType = document['document_type'] ?? 'Document';
+    final expiryDate = (document['expiry_date'] ?? document['date_of_expiry'])
+        ?.toString();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dialogBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     final textColor = isDark ? Colors.white : const Color(0xFF1A1A1A);
-    final subtitleColor = isDark ? const Color(0xFFADB5BD) : const Color(0xFF6C757D);
+    final subtitleColor = isDark
+        ? const Color(0xFFADB5BD)
+        : const Color(0xFF6C757D);
 
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(0),
       child: Container(
-        margin: const EdgeInsets.only(top: 80),
+        margin: EdgeInsets.zero,
         decoration: BoxDecoration(
           color: dialogBg,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: BorderRadius.zero,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.max,
           children: [
-            // Modal Handle
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(top: 12),
-              decoration: BoxDecoration(
-                color: isDark ? Colors.grey[700] : Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-
             // Header
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Document Details',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: textColor,
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.arrow_back, color: subtitleColor),
+                      tooltip: 'Back',
+                      onPressed: () => Navigator.of(context).pop(),
                     ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.close, color: subtitleColor),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
+                    const Spacer(),
+                    IconButton(
+                      icon: Icon(
+                        Icons.edit_outlined,
+                        color: AppTheme.primaryColor,
+                      ),
+                      tooltip: 'Edit document',
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        onEdit();
+                      },
+                    ),
+                    PopupMenuButton<String>(
+                      tooltip: 'More document actions',
+                      icon: Icon(Icons.more_vert, color: subtitleColor),
+                      onSelected: (action) {
+                        if (action == 'delete') {
+                          Navigator.of(context).pop();
+                          onDelete();
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Text('Delete document'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
 
@@ -146,109 +161,179 @@ class DocumentDetailsModal extends StatelessWidget {
                 child: Column(
                   children: [
                     // Document Header
-                    Column(
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Icon
                         Container(
-                          width: 80,
-                          height: 80,
+                          width: 56,
+                          height: 56,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF0d6efd).withValues(alpha: 0.1),
-                            shape: BoxShape.circle,
+                            color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(
                             _getDocumentIcon(documentType),
-                            size: 40,
-                            color: const Color(0xFF0d6efd),
+                            size: 28,
+                            color: AppTheme.primaryColor,
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        
-                        // Name
-                        Text(
-                          document['document_name'] ?? 'Unnamed Document',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            color: textColor,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-                        
-                        // Badges
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0d6efd).withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                documentType,
-                                style: const TextStyle(
-                                  color: Color(0xFF0d6efd),
-                                  fontSize: 14,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                document['document_name'] ?? 'Unnamed Document',
+                                style: TextStyle(
+                                  fontSize: 20,
                                   fontWeight: FontWeight.w600,
+                                  color: textColor,
                                 ),
                               ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 6,
+                                children: [
+                                  _buildDetailBadge(
+                                    documentType,
+                                    AppTheme.primaryColor,
+                                  ),
+                                  _buildDetailBadge(
+                                    status,
+                                    _getStatusColor(status),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    if (expiryDate != null && expiryDate.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(
+                            status,
+                          ).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.access_time,
+                              size: 18,
+                              color: _getStatusColor(status),
                             ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _getStatusColor(status).withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
+                            const SizedBox(width: 10),
+                            Expanded(
                               child: Text(
-                                status,
+                                '${status == 'Expired' ? 'Expired' : 'Expires'} ${_formatDate(expiryDate)}',
                                 style: TextStyle(
                                   color: _getStatusColor(status),
-                                  fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                    
+                      ),
+                    ],
+
                     const Divider(height: 40),
-                    
+
                     // Document Information
-                    if (document['document_number'] != null && document['document_number'].toString().isNotEmpty)
-                      _buildInfoField('Document Number', document['document_number'], isMonospace: true, textColor: textColor),
-                    
-                    if (document['profile_name'] != null && document['profile_name'].toString().isNotEmpty)
-                      _buildInfoField('Profile', document['profile_name'], textColor: textColor),
-                    
-                    if ((document['issue_date'] ?? document['date_of_issue']) != null && (document['issue_date'] ?? document['date_of_issue']).toString().isNotEmpty)
-                      _buildInfoField('Issue Date', _formatDate((document['issue_date'] ?? document['date_of_issue']).toString()), textColor: textColor),
-                    
-                    if ((document['expiry_date'] ?? document['date_of_expiry']) != null && (document['expiry_date'] ?? document['date_of_expiry']).toString().isNotEmpty)
-                      _buildInfoField('Expiry Date', _formatDate((document['expiry_date'] ?? document['date_of_expiry']).toString()), textColor: textColor),
-                    
-                    if ((document['file_type'] ?? document['mime_type']) != null && (document['file_type'] ?? document['mime_type']).toString().isNotEmpty)
-                      _buildInfoField('File Type', (document['file_type'] ?? document['mime_type'])?.toString().toUpperCase() ?? 'N/A', textColor: textColor),
-                    
+                    if (document['document_number'] != null &&
+                        document['document_number'].toString().isNotEmpty)
+                      _buildInfoField(
+                        'Document Number',
+                        document['document_number'],
+                        isMonospace: true,
+                        textColor: textColor,
+                      ),
+
+                    if (document['profile_name'] != null &&
+                        document['profile_name'].toString().isNotEmpty)
+                      _buildInfoField(
+                        'Profile',
+                        document['profile_name'],
+                        textColor: textColor,
+                      ),
+
+                    if ((document['issue_date'] ?? document['date_of_issue']) !=
+                            null &&
+                        (document['issue_date'] ?? document['date_of_issue'])
+                            .toString()
+                            .isNotEmpty)
+                      _buildInfoField(
+                        'Issue Date',
+                        _formatDate(
+                          (document['issue_date'] ?? document['date_of_issue'])
+                              .toString(),
+                        ),
+                        textColor: textColor,
+                      ),
+
+                    if ((document['expiry_date'] ??
+                                document['date_of_expiry']) !=
+                            null &&
+                        (document['expiry_date'] ?? document['date_of_expiry'])
+                            .toString()
+                            .isNotEmpty)
+                      _buildInfoField(
+                        'Expiry Date',
+                        _formatDate(
+                          (document['expiry_date'] ??
+                                  document['date_of_expiry'])
+                              .toString(),
+                        ),
+                        textColor: textColor,
+                      ),
+
+                    if ((document['file_type'] ?? document['mime_type']) !=
+                            null &&
+                        (document['file_type'] ?? document['mime_type'])
+                            .toString()
+                            .isNotEmpty)
+                      _buildInfoField(
+                        'File Type',
+                        (document['file_type'] ?? document['mime_type'])
+                                ?.toString()
+                                .toUpperCase() ??
+                            'N/A',
+                        textColor: textColor,
+                      ),
+
                     if (document['file_size'] != null)
-                      _buildInfoField('File Size', _formatFileSize(document['file_size']), textColor: textColor),
-                    
-                    if ((document['notes'] ?? document['description']) != null && (document['notes'] ?? document['description']).toString().isNotEmpty)
-                      _buildInfoField('Notes', (document['notes'] ?? document['description']).toString(), isLongText: true, textColor: textColor),
-                    
+                      _buildInfoField(
+                        'File Size',
+                        _formatFileSize(document['file_size']),
+                        textColor: textColor,
+                      ),
+
+                    if ((document['notes'] ?? document['description']) !=
+                            null &&
+                        (document['notes'] ?? document['description'])
+                            .toString()
+                            .isNotEmpty)
+                      _buildInfoField(
+                        'Notes',
+                        (document['notes'] ?? document['description'])
+                            .toString(),
+                        isLongText: true,
+                        textColor: textColor,
+                      ),
+
                     const SizedBox(height: 24),
-                    
-                    // Quick Actions
+
+                    // Additional Actions
                     Row(
                       children: [
                         Expanded(
@@ -256,32 +341,6 @@ class DocumentDetailsModal extends StatelessWidget {
                             icon: Icons.visibility,
                             label: 'View',
                             onPressed: () => _openDocument(context),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _buildActionButton(
-                            icon: Icons.download,
-                            label: 'Download',
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                              onDownload();
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildActionButton(
-                            icon: Icons.share,
-                            label: 'Share',
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                              onShare();
-                            },
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -310,29 +369,58 @@ class DocumentDetailsModal extends StatelessWidget {
                         isDanger: true,
                       ),
                     ),
-                    
-                    const SizedBox(height: 12),
-                    
-                    // Close Button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0d6efd),
-                          foregroundColor: Colors.white,
+                    const SizedBox(height: 32),
+                  ],
+                ),
+              ),
+            ),
+            SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                decoration: BoxDecoration(
+                  color: dialogBg,
+                  border: Border(
+                    top: BorderSide(
+                      color: isDark
+                          ? const Color(0xFF404040)
+                          : const Color(0xFFDEE2E6),
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          onDownload();
+                        },
+                        icon: const Icon(Icons.download),
+                        label: const Text('Download'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppTheme.primaryColor,
+                          side: const BorderSide(color: AppTheme.primaryColor),
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: const Text(
-                          'Close',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 32),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          onShare();
+                        },
+                        icon: const Icon(Icons.share),
+                        label: const Text('Share'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -343,7 +431,31 @@ class DocumentDetailsModal extends StatelessWidget {
     );
   }
 
-  Widget _buildInfoField(String label, String value, {bool isMonospace = false, bool isLongText = false, Color? textColor}) {
+  Widget _buildDetailBadge(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoField(
+    String label,
+    String value, {
+    bool isMonospace = false,
+    bool isLongText = false,
+    Color? textColor,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -387,9 +499,11 @@ class DocumentDetailsModal extends StatelessWidget {
       style: OutlinedButton.styleFrom(
         padding: const EdgeInsets.symmetric(vertical: 12),
         side: BorderSide(
-          color: isDanger ? const Color(0xFFdc3545) : const Color(0xFF0d6efd),
+          color: isDanger ? const Color(0xFFdc3545) : AppTheme.primaryColor,
         ),
-        foregroundColor: isDanger ? const Color(0xFFdc3545) : const Color(0xFF0d6efd),
+        foregroundColor: isDanger
+            ? const Color(0xFFdc3545)
+            : AppTheme.primaryColor,
       ),
     );
   }
@@ -397,7 +511,7 @@ class DocumentDetailsModal extends StatelessWidget {
   String _formatFileSize(dynamic size) {
     if (size == null) return 'N/A';
     final bytes = size is int ? size : int.tryParse(size.toString()) ?? 0;
-    
+
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';

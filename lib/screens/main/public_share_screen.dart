@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../config/app_config.dart';
 import '../../services/api_service.dart';
 
 class PublicShareScreen extends StatefulWidget {
@@ -43,6 +44,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
 
     try {
       final response = await ApiService.getPublicShare(widget.token);
+      if (!mounted) return;
 
       if (response['success'] == true) {
         setState(() {
@@ -55,13 +57,17 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
         });
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'This share link is invalid or has expired';
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'This share link is invalid or has expired';
+        });
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -76,6 +82,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
         widget.token,
         password: _passwordRequired ? _passwordController.text : null,
       );
+      if (!mounted) return;
 
       if (response['success'] == true) {
         setState(() {
@@ -110,35 +117,67 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
         });
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+        });
+      }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _openSharedDocument() async {
+    final documentUrl = _documentUrl;
+    if (documentUrl == null || documentUrl.isEmpty) {
+      return;
+    }
+
+    try {
+      final uri = Uri.parse(documentUrl);
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+          mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open the shared document')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open the shared document: $e')),
+        );
+      }
     }
   }
 
   void _handleCopyLink() {
-    final url = 'https://yourapp.com/share/${widget.token}';
+    final url = '${AppConfig.webBaseUrl}/share/${widget.token}';
     Clipboard.setData(ClipboardData(text: url));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Link copied to clipboard!')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Link copied to clipboard!')));
   }
 
   void _handleShare() {
-    final url = 'https://yourapp.com/share/${widget.token}';
-    final text = 'Check out this shared document: ${_shareData?['document_name']}';
+    final url = '${AppConfig.webBaseUrl}/share/${widget.token}';
+    final text =
+        'Check out this shared document: ${_shareData?['document_name']}';
     Share.share('$text\n$url');
   }
+
   void _handleShareEmail() async {
-    final url = 'https://yourapp.com/share/${widget.token}';
+    final url = '${AppConfig.webBaseUrl}/share/${widget.token}';
     final subject = 'Shared Document: ${_shareData?['document_name']}';
-    final body = 'I\'m sharing a document with you:\n\n${_shareData?['document_name']}\n${_shareData?['document_type']}\n\nAccess it here: $url';
-    final emailUrl = Uri.parse('mailto:?subject=${Uri.encodeComponent(subject)}&body=${Uri.encodeComponent(body)}');
-    
+    final body =
+        'I\'m sharing a document with you:\n\n${_shareData?['document_name']}\n${_shareData?['document_type']}\n\nAccess it here: $url';
+    final emailUrl = Uri.parse(
+      'mailto:?subject=${Uri.encodeComponent(subject)}&body=${Uri.encodeComponent(body)}',
+    );
+
     if (await canLaunchUrl(emailUrl)) {
       await launchUrl(emailUrl);
     }
@@ -146,10 +185,10 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
 
   String _formatFileSize(int? bytes) {
     if (bytes == null) return 'Unknown size';
-    
+
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     if (bytes == 0) return '0 Bytes';
-    
+
     final i = (bytes.bitLength - 1) ~/ 10;
     final size = bytes / (1 << (i * 10));
     return '${size.toStringAsFixed(2)} ${sizes[i]}';
@@ -157,7 +196,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
 
   String _formatDate(String? dateString) {
     if (dateString == null) return 'No expiration';
-    
+
     try {
       final date = DateTime.parse(dateString);
       return '${date.month}/${date.day}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
@@ -209,10 +248,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
                 const SizedBox(height: 24),
                 const Text(
                   'Access Denied',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -260,19 +296,16 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
                 const SizedBox(height: 24),
                 const Text(
                   'Access Granted',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'The document has been opened',
+                  'If the document did not open automatically, use the button below.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.black54),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Document Info
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -299,15 +332,17 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                
-                // Open Again Button
+
+                // Open Document Button
                 SizedBox(
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton.icon(
-                    onPressed: _handleAccessDocument,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Open Again'),
+                    onPressed: _documentUrl == null
+                        ? null
+                        : _openSharedDocument,
+                    icon: const Icon(Icons.open_in_new),
+                    label: const Text('Open Document'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue,
                       foregroundColor: Colors.white,
@@ -318,7 +353,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Share Options
                 const Divider(),
                 const SizedBox(height: 16),
@@ -389,16 +424,13 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              
+
               const Text(
                 'Shared Document',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 32),
-              
+
               // Document Details
               Container(
                 width: double.infinity,
@@ -447,7 +479,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              
+
               // Error Message
               if (_errorMessage != null)
                 Container(
@@ -456,7 +488,9 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
                   margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
                     color: Colors.red.withValues(alpha: 0.1),
-                    border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: Colors.red.withValues(alpha: 0.3),
+                    ),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -464,7 +498,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
                     style: const TextStyle(color: Colors.red),
                   ),
                 ),
-              
+
               // Password Field
               if (_passwordRequired)
                 Column(
@@ -504,7 +538,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
                     const SizedBox(height: 24),
                   ],
                 ),
-              
+
               // View Document Button
               SizedBox(
                 width: double.infinity,
@@ -517,8 +551,9 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
                           ),
                         )
                       : const Icon(Icons.visibility),
@@ -533,7 +568,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // Footer
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -542,10 +577,7 @@ class _PublicShareScreenState extends State<PublicShareScreen> {
                   SizedBox(width: 8),
                   Text(
                     'This document is securely shared',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.black54,
-                    ),
+                    style: TextStyle(fontSize: 12, color: Colors.black54),
                   ),
                 ],
               ),
@@ -570,17 +602,11 @@ class _DetailRow extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(
-            color: Colors.black54,
-            fontSize: 14,
-          ),
+          style: const TextStyle(color: Colors.black54, fontSize: 14),
         ),
         Text(
           value,
-          style: const TextStyle(
-            fontWeight: FontWeight.w500,
-            fontSize: 14,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
         ),
       ],
     );

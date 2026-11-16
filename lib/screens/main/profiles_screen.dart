@@ -17,6 +17,7 @@ import '../../utils/type_helpers.dart';
 import '../../utils/responsive.dart';
 import '../../utils/date_formatter.dart';
 import '../../widgets/skeleton_loader.dart';
+import '../../config/app_theme.dart';
 
 class ProfilesScreen extends StatefulWidget {
   const ProfilesScreen({super.key});
@@ -728,7 +729,7 @@ class _ProfilesScreenState extends State<ProfilesScreen>
           ? SkeletonLoader.profileList()
           : RefreshIndicator(
               onRefresh: _fetchProfiles,
-              color: const Color(0xFF0d6efd),
+              color: AppTheme.primaryColor,
               child: CustomScrollView(
                 slivers: [
                   // Page Header
@@ -748,7 +749,7 @@ class _ProfilesScreenState extends State<ProfilesScreen>
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${_profiles.length} ${_profiles.length == 1 ? 'person' : 'people'} managed',
+                            'Each profile keeps one person’s documents.',
                             style: TextStyle(fontSize: 14, color: subtextColor),
                           ),
                         ],
@@ -760,188 +761,115 @@ class _ProfilesScreenState extends State<ProfilesScreen>
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: cardBg,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: borderColor),
+                        ),
+                        child: TextField(
+                          controller: _searchController,
+                          style: TextStyle(color: textColor),
+                          decoration: InputDecoration(
+                            hintText: 'Search profiles...',
+                            hintStyle: TextStyle(color: subtextColor),
+                            prefixIcon: Icon(Icons.search, color: subtextColor),
+                            suffixIcon: _searchTerm.isNotEmpty
+                                ? IconButton(
+                                    icon: Icon(
+                                      Icons.close,
+                                      size: 20,
+                                      color: subtextColor,
+                                    ),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() {
+                                        _searchTerm = '';
+                                        _filterType = 'All';
+                                      });
+                                      _filterAndSortProfiles();
+                                    },
+                                  )
+                                : null,
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          ),
+                          onChanged: (value) {
+                            setState(() => _searchTerm = value);
+                            _filterAndSortProfiles();
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Profile type filters and sort control
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
                       child: Row(
                         children: [
                           Expanded(
-                            flex: 2,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: cardBg,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: borderColor),
-                              ),
-                              child: TextField(
-                                controller: _searchController,
-                                style: TextStyle(color: textColor),
-                                decoration: InputDecoration(
-                                  hintText: 'Search profiles...',
-                                  hintStyle: TextStyle(color: subtextColor),
-                                  prefixIcon: Icon(
-                                    Icons.search,
-                                    color: subtextColor,
-                                  ),
-                                  suffixIcon: _searchTerm.isNotEmpty
-                                      ? IconButton(
-                                          icon: Icon(
-                                            Icons.close,
-                                            size: 20,
-                                            color: subtextColor,
-                                          ),
-                                          onPressed: () {
-                                            _searchController.clear();
-                                            setState(() {
-                                              _searchTerm = '';
-                                              _filterType = 'All';
-                                            });
-                                            _filterAndSortProfiles();
-                                          },
-                                        )
-                                      : null,
-                                  border: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 14,
-                                  ),
-                                ),
-                                onChanged: (value) {
-                                  setState(() => _searchTerm = value);
-                                  _filterAndSortProfiles();
-                                },
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            flex: 1,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color: cardBg,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: borderColor),
-                              ),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  value: safeFilterType,
-                                  dropdownColor: cardBg,
-                                  isExpanded: true,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: textColor,
-                                  ),
-                                  items: _profileTypes.map((type) {
-                                    return DropdownMenuItem(
-                                      value: type,
-                                      child: Text(
-                                        type,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: textColor,
-                                        ),
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: _profileTypes.map((type) {
+                                  final selected = type == safeFilterType;
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: ChoiceChip(
+                                      label: Text(type),
+                                      selected: selected,
+                                      showCheckmark: selected,
+                                      selectedColor: AppTheme.primaryColor
+                                          .withValues(alpha: 0.1),
+                                      labelStyle: TextStyle(
+                                        color: selected
+                                            ? AppTheme.primaryColor
+                                            : textColor,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
                                       ),
-                                    );
-                                  }).toList(),
-                                  onChanged: (value) {
-                                    if (value != null) {
-                                      setState(() => _filterType = value);
-                                      _filterAndSortProfiles();
-                                    }
-                                  },
-                                ),
+                                      onSelected: (_) {
+                                        setState(() => _filterType = type);
+                                        _filterAndSortProfiles();
+                                      },
+                                    ),
+                                  );
+                                }).toList(),
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // Sort Dropdown
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                      child: Container(
-                        width: 200,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: cardBg,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: borderColor),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _sortBy,
-                            dropdownColor: cardBg,
-                            isExpanded: true,
-                            style: TextStyle(fontSize: 14, color: textColor),
-                            items: [
-                              DropdownMenuItem(
+                          PopupMenuButton<String>(
+                            tooltip: 'Sort profiles',
+                            icon: Icon(Icons.swap_vert, color: subtextColor),
+                            onSelected: (value) {
+                              setState(() => _sortBy = value);
+                              _filterAndSortProfiles();
+                            },
+                            itemBuilder: (context) => const [
+                              PopupMenuItem(
                                 value: 'name-asc',
-                                child: Text(
-                                  'Name (A-Z)',
-                                  style: TextStyle(color: textColor),
-                                ),
+                                child: Text('Name (A-Z)'),
                               ),
-                              DropdownMenuItem(
+                              PopupMenuItem(
                                 value: 'name-desc',
-                                child: Text(
-                                  'Name (Z-A)',
-                                  style: TextStyle(color: textColor),
-                                ),
+                                child: Text('Name (Z-A)'),
                               ),
-                              DropdownMenuItem(
+                              PopupMenuItem(
                                 value: 'type',
-                                child: Text(
-                                  'Profile Type',
-                                  style: TextStyle(color: textColor),
-                                ),
+                                child: Text('Profile type'),
                               ),
-                              DropdownMenuItem(
+                              PopupMenuItem(
                                 value: 'status',
-                                child: Text(
-                                  'Status',
-                                  style: TextStyle(color: textColor),
-                                ),
+                                child: Text('Status'),
                               ),
                             ],
-                            onChanged: (value) {
-                              if (value != null) {
-                                setState(() => _sortBy = value);
-                                _filterAndSortProfiles();
-                              }
-                            },
                           ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Add Profile Button
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _showAddProfileModal,
-                          icon: const Icon(Icons.person_add, size: 20),
-                          label: const Text(
-                            'Add New Profile',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0d6efd),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
+                        ],
                       ),
                     ),
                   ),
@@ -979,22 +907,6 @@ class _ProfilesScreenState extends State<ProfilesScreen>
                                     color: Color(0xFF6c757d),
                                   ),
                                 ),
-                                if (_profiles.isEmpty) ...[
-                                  const SizedBox(height: 16),
-                                  ElevatedButton.icon(
-                                    onPressed: _showAddProfileModal,
-                                    icon: const Icon(Icons.person_add),
-                                    label: const Text('Add First Profile'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF0d6efd),
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 24,
-                                        vertical: 12,
-                                      ),
-                                    ),
-                                  ),
-                                ],
                               ],
                             ),
                           ),
@@ -1004,7 +916,7 @@ class _ProfilesScreenState extends State<ProfilesScreen>
                             Responsive.getPadding(context),
                             0,
                             Responsive.getPadding(context),
-                            16,
+                            24,
                           ),
                           sliver:
                               Responsive.isTablet(context) ||
@@ -1054,6 +966,34 @@ class _ProfilesScreenState extends State<ProfilesScreen>
                 ],
               ),
             ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            border: Border(top: BorderSide(color: borderColor)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              ElevatedButton.icon(
+                onPressed: _showAddProfileModal,
+                icon: const Icon(Icons.add, size: 20),
+                label: const Text('Add profile'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

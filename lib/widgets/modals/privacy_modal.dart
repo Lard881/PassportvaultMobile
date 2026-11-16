@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
+import '../../config/app_theme.dart';
 
 class PrivacyModal extends StatelessWidget {
   const PrivacyModal({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(0),
+      insetPadding: const EdgeInsets.all(12),
       child: Container(
-        margin: const EdgeInsets.only(top: 80),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.92,
+        ),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(AppTheme.radiusLg),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.max,
@@ -23,7 +27,7 @@ class PrivacyModal extends StatelessWidget {
               height: 4,
               margin: const EdgeInsets.only(top: 12),
               decoration: BoxDecoration(
-                color: Colors.grey[300],
+                color: theme.dividerColor,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -56,11 +60,11 @@ class PrivacyModal extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Last updated: January 2024',
+                    Text(
+                      'Effective date: To be confirmed',
                       style: TextStyle(
                         fontSize: 14,
-                        color: Color(0xFF6c757d),
+                        color: theme.colorScheme.onSurfaceVariant,
                         fontStyle: FontStyle.italic,
                       ),
                     ),
@@ -152,7 +156,7 @@ class PrivacyModal extends StatelessWidget {
                       child: ElevatedButton(
                         onPressed: () => Navigator.of(context).pop(),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0d6efd),
+                          backgroundColor: AppTheme.primaryColor,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
@@ -187,7 +191,6 @@ class PrivacyModal extends StatelessWidget {
             style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF1a1a1a),
             ),
           ),
           const SizedBox(height: 12),
@@ -195,7 +198,6 @@ class PrivacyModal extends StatelessWidget {
             content,
             style: const TextStyle(
               fontSize: 15,
-              color: Color(0xFF495057),
               height: 1.6,
             ),
           ),

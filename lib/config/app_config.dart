@@ -2,6 +2,7 @@
 class AppConfig {
   // Backend API URL - Production
   static const String apiBaseUrl = 'https://passportvault-backend.onrender.com/api';
+  static const String webBaseUrl = 'https://passportvault.netlify.app';
   
   // Supabase Configuration
   static const String supabaseUrl = 'https://kxknkjtoqnxxnwmgsdsm.supabase.co';

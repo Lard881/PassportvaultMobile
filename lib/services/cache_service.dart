@@ -245,7 +245,16 @@ class CacheService {
 
   /// Get count of pending actions
   static Future<int> getPendingActionCount() async {
-    final actions = await getPendingActions();
+    final prefs = await SharedPreferences.getInstance();
+    final queueJson = prefs.getString(_syncQueueKey);
+    if (queueJson == null || queueJson.isEmpty) {
+      return 0;
+    }
+
+    final actions = jsonDecode(queueJson);
+    if (actions is! List) {
+      throw const FormatException('Pending sync queue is not a list');
+    }
     return actions.length;
   }
 

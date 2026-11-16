@@ -9,10 +9,11 @@ class BackupRestoreService {
   static Future<void> checkAndOfferRestore(BuildContext context) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       // Check if we've already shown restore prompt
-      final hasShownRestorePrompt = prefs.getBool('pv_shown_restore_prompt') ?? false;
-      
+      final hasShownRestorePrompt =
+          prefs.getBool('pv_shown_restore_prompt') ?? false;
+
       if (hasShownRestorePrompt) {
         print('[BackupRestore] Already shown restore prompt, skipping');
         return;
@@ -21,17 +22,16 @@ class BackupRestoreService {
       // Check if backup exists on server
       print('[BackupRestore] Checking for existing backup...');
       final response = await ApiService.getLatestBackup();
-      
+
       if (response['success'] == true && response['data'] != null) {
         final backupData = response['data'];
         final documentCount = backupData['document_count'] ?? 0;
         final profileCount = backupData['profile_count'] ?? 0;
-        
-        print('[BackupRestore] Found backup: $documentCount documents, $profileCount profiles');
-        
-        // Mark that we've shown the prompt
-        await prefs.setBool('pv_shown_restore_prompt', true);
-        
+
+        print(
+          '[BackupRestore] Found backup: $documentCount documents, $profileCount profiles',
+        );
+
         // Show restore dialog (WhatsApp-style)
         if (context.mounted) {
           final shouldRestore = await _showRestoreDialog(
@@ -40,21 +40,26 @@ class BackupRestoreService {
             profileCount: profileCount,
             sizeMB: backupData['size_mb'],
           );
-          
+
           if (shouldRestore == true) {
-            await _performRestore(context, backupData['id']);
+            final restored = await _performRestore(context, backupData['id']);
+            if (restored) {
+              await prefs.setBool('pv_shown_restore_prompt', true);
+            }
+          } else if (shouldRestore == false) {
+            await prefs.setBool('pv_shown_restore_prompt', true);
           }
         }
-      } else {
+      } else if (response['success'] == true) {
         print('[BackupRestore] No backup found');
-        // Mark that we checked (so we don't keep checking)
         await prefs.setBool('pv_shown_restore_prompt', true);
+      } else {
+        print(
+          '[BackupRestore] Failed to check for backup: ${response['message']}',
+        );
       }
     } catch (error) {
       print('[BackupRestore] Error checking for backup: $error');
-      // Mark as checked to avoid repeated failed attempts
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('pv_shown_restore_prompt', true);
     }
   }
 
@@ -93,7 +98,9 @@ class BackupRestoreService {
               decoration: BoxDecoration(
                 color: const Color(0xFFe3f2fd),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFF0d6efd).withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: const Color(0xFF0d6efd).withValues(alpha: 0.3),
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -109,22 +116,36 @@ class BackupRestoreService {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(Icons.description, size: 16, color: Color(0xFF0d6efd)),
+                      const Icon(
+                        Icons.description,
+                        size: 16,
+                        color: Color(0xFF0d6efd),
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         '$documentCount documents',
-                        style: const TextStyle(fontSize: 13, color: Color(0xFF084298)),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF084298),
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.person, size: 16, color: Color(0xFF0d6efd)),
+                      const Icon(
+                        Icons.person,
+                        size: 16,
+                        color: Color(0xFF0d6efd),
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         '$profileCount profiles',
-                        style: const TextStyle(fontSize: 13, color: Color(0xFF084298)),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF084298),
+                        ),
                       ),
                     ],
                   ),
@@ -156,7 +177,19 @@ class BackupRestoreService {
   }
 
   /// Perform the restore operation
-  static Future<void> _performRestore(BuildContext context, String backupId) async {
+  static Future<bool> _performRestore(
+    BuildContext context,
+    String backupId,
+  ) async {
+    var loadingDialogOpen = true;
+    void closeLoadingDialog() {
+      if (!loadingDialogOpen) return;
+      loadingDialogOpen = false;
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+    }
+
     // Show loading dialog
     showDialog(
       context: context,
@@ -174,16 +207,16 @@ class BackupRestoreService {
     );
 
     try {
-      final response = await ApiService.restoreBackup(backupId, mode: 'overwrite');
-      
-      // Close loading dialog
-      if (context.mounted) {
-        Navigator.pop(context);
-      }
+      final response = await ApiService.restoreBackup(
+        backupId,
+        mode: 'overwrite',
+      );
+
+      closeLoadingDialog();
 
       if (response['success'] == true && response['data'] != null) {
         final data = response['data'];
-        
+
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -194,23 +227,23 @@ class BackupRestoreService {
               duration: const Duration(seconds: 3),
             ),
           );
-          
+
           // Force complete app reload by clearing navigation stack and rebuilding
           // This ensures all screens (Documents, Profiles, etc.) fetch fresh data
           await Future.delayed(const Duration(seconds: 2));
           if (context.mounted) {
             // Navigate to main screen and remove all routes - this forces all screens to reinitialize
-            Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+            Navigator.of(
+              context,
+            ).pushNamedAndRemoveUntil('/', (route) => false);
           }
         }
+        return true;
       } else {
         throw Exception(response['message'] ?? 'Restore failed');
       }
     } catch (error) {
-      // Close loading dialog
-      if (context.mounted) {
-        Navigator.pop(context);
-      }
+      closeLoadingDialog();
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -221,6 +254,7 @@ class BackupRestoreService {
           ),
         );
       }
+      return false;
     }
   }
 

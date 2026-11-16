@@ -15,6 +15,7 @@ import '../../utils/type_helpers.dart';
 import '../../utils/responsive.dart';
 import '../../utils/date_formatter.dart';
 import '../../widgets/skeleton_loader.dart';
+import '../../config/app_theme.dart';
 
 class DocumentsScreen extends StatefulWidget {
   const DocumentsScreen({super.key});
@@ -579,9 +580,8 @@ class _DocumentsScreenState extends State<DocumentsScreen>
   void _shareDocument(Map<String, dynamic> document) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => SecureSharingScreen(
-          initialDocumentId: document['id']?.toString(),
-        ),
+        builder: (context) =>
+            SecureSharingScreen(initialDocumentId: document['id']?.toString()),
       ),
     );
   }
@@ -682,7 +682,7 @@ class _DocumentsScreenState extends State<DocumentsScreen>
           ? SkeletonLoader.documentList()
           : RefreshIndicator(
               onRefresh: _fetchDocuments,
-              color: const Color(0xFF0d6efd),
+              color: AppTheme.primaryColor,
               child: CustomScrollView(
                 slivers: [
                   // Page Header
@@ -700,11 +700,6 @@ class _DocumentsScreenState extends State<DocumentsScreen>
                               color: textColor,
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${_documents.length} ${_documents.length == 1 ? 'document' : 'documents'} stored securely',
-                            style: TextStyle(fontSize: 14, color: subtextColor),
-                          ),
                         ],
                       ),
                     ),
@@ -714,59 +709,113 @@ class _DocumentsScreenState extends State<DocumentsScreen>
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: cardBg,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: borderColor),
+                        ),
+                        child: TextField(
+                          controller: _searchController,
+                          style: TextStyle(color: textColor),
+                          decoration: InputDecoration(
+                            hintText: 'Search documents...',
+                            hintStyle: TextStyle(color: subtextColor),
+                            prefixIcon: Icon(Icons.search, color: subtextColor),
+                            suffixIcon: _searchTerm.isNotEmpty
+                                ? IconButton(
+                                    icon: Icon(
+                                      Icons.close,
+                                      size: 20,
+                                      color: subtextColor,
+                                    ),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => _searchTerm = '');
+                                      _filterAndSortDocuments();
+                                    },
+                                  )
+                                : null,
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          ),
+                          onChanged: (value) {
+                            setState(() => _searchTerm = value);
+                            _filterAndSortDocuments();
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Person and document type filters
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
                       child: Row(
                         children: [
                           Expanded(
-                            flex: 2,
                             child: Container(
+                              height: 40,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                              ),
                               decoration: BoxDecoration(
                                 color: cardBg,
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(color: borderColor),
                               ),
-                              child: TextField(
-                                controller: _searchController,
-                                style: TextStyle(color: textColor),
-                                decoration: InputDecoration(
-                                  hintText: 'Search documents...',
-                                  hintStyle: TextStyle(color: subtextColor),
-                                  prefixIcon: Icon(
-                                    Icons.search,
-                                    color: subtextColor,
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: safeFilterProfileId,
+                                  dropdownColor: cardBg,
+                                  isExpanded: true,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: textColor,
                                   ),
-                                  suffixIcon: _searchTerm.isNotEmpty
-                                      ? IconButton(
-                                          icon: Icon(
-                                            Icons.close,
-                                            size: 20,
-                                            color: subtextColor,
-                                          ),
-                                          onPressed: () {
-                                            _searchController.clear();
-                                            setState(() => _searchTerm = '');
-                                            _filterAndSortDocuments();
-                                          },
-                                        )
-                                      : null,
-                                  border: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 14,
-                                  ),
+                                  items: [
+                                    DropdownMenuItem(
+                                      value: 'All Profiles',
+                                      child: Text(
+                                        'All people',
+                                        style: TextStyle(color: textColor),
+                                      ),
+                                    ),
+                                    ..._profiles.map((profile) {
+                                      final profileId = profile['id']
+                                          ?.toString();
+                                      return DropdownMenuItem(
+                                        value: profileId,
+                                        child: Text(
+                                          profile['full_name']?.toString() ??
+                                              profile['name']?.toString() ??
+                                              'Unnamed profile',
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(color: textColor),
+                                        ),
+                                      );
+                                    }),
+                                  ],
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() => _filterProfileId = value);
+                                      _filterAndSortDocuments();
+                                    }
+                                  },
                                 ),
-                                onChanged: (value) {
-                                  setState(() => _searchTerm = value);
-                                  _filterAndSortDocuments();
-                                },
                               ),
                             ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
-                            flex: 1,
                             child: Container(
+                              height: 40,
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
+                                horizontal: 10,
                               ),
                               decoration: BoxDecoration(
                                 color: cardBg,
@@ -779,19 +828,18 @@ class _DocumentsScreenState extends State<DocumentsScreen>
                                   dropdownColor: cardBg,
                                   isExpanded: true,
                                   style: TextStyle(
-                                    fontSize: 14,
+                                    fontSize: 13,
                                     color: textColor,
                                   ),
                                   items: _documentTypes.map((type) {
                                     return DropdownMenuItem(
                                       value: type,
                                       child: Text(
-                                        type,
+                                        type == 'All Types'
+                                            ? 'All types'
+                                            : type,
                                         overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: textColor,
-                                        ),
+                                        style: TextStyle(color: textColor),
                                       ),
                                     );
                                   }).toList(),
@@ -805,184 +853,53 @@ class _DocumentsScreenState extends State<DocumentsScreen>
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // Filter by person
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: cardBg,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: borderColor),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: safeFilterProfileId,
-                            dropdownColor: cardBg,
-                            isExpanded: true,
-                            style: TextStyle(fontSize: 14, color: textColor),
-                            items: [
-                              DropdownMenuItem(
-                                value: 'All Profiles',
-                                child: Text(
-                                  'All people',
-                                  style: TextStyle(color: textColor),
-                                ),
-                              ),
-                              ..._profiles.map((profile) {
-                                final profileId = profile['id']?.toString();
-                                return DropdownMenuItem(
-                                  value: profileId,
-                                  child: Text(
-                                    profile['full_name']?.toString() ??
-                                        profile['name']?.toString() ??
-                                        'Unnamed profile',
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(color: textColor),
-                                  ),
-                                );
-                              }),
-                            ],
-                            onChanged: (value) {
-                              if (value != null) {
-                                setState(() => _filterProfileId = value);
-                                _filterAndSortDocuments();
-                              }
-                            },
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Sort Dropdown
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                      child: Container(
-                        width: 200,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: cardBg,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: borderColor),
-                        ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _sortBy,
-                            dropdownColor: cardBg,
-                            isExpanded: true,
-                            style: TextStyle(fontSize: 14, color: textColor),
-                            items: [
-                              DropdownMenuItem(
-                                value: 'name-asc',
-                                child: Text(
-                                  'Name (A-Z)',
-                                  style: TextStyle(color: textColor),
-                                ),
-                              ),
-                              DropdownMenuItem(
-                                value: 'name-desc',
-                                child: Text(
-                                  'Name (Z-A)',
-                                  style: TextStyle(color: textColor),
-                                ),
-                              ),
-                              DropdownMenuItem(
-                                value: 'date-new',
-                                child: Text(
-                                  'Newest First',
-                                  style: TextStyle(color: textColor),
-                                ),
-                              ),
-                              DropdownMenuItem(
-                                value: 'date-old',
-                                child: Text(
-                                  'Oldest First',
-                                  style: TextStyle(color: textColor),
-                                ),
-                              ),
-                              DropdownMenuItem(
-                                value: 'status',
-                                child: Text(
-                                  'Status',
-                                  style: TextStyle(color: textColor),
-                                ),
-                              ),
-                            ],
-                            onChanged: (value) {
-                              if (value != null) {
+                          PopupMenuButton<String>(
+                            tooltip: 'Document actions',
+                            icon: Icon(Icons.more_vert, color: subtextColor),
+                            onSelected: (value) {
+                              if (value == 'export') {
+                                _exportAllDocuments();
+                              } else {
                                 setState(() => _sortBy = value);
                                 _filterAndSortDocuments();
                               }
                             },
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'name-asc',
+                                child: Text('Name (A-Z)'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'name-desc',
+                                child: Text('Name (Z-A)'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'date-new',
+                                child: Text('Newest first'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'date-old',
+                                child: Text('Oldest first'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'status',
+                                child: Text('Status'),
+                              ),
+                              if (_documents.isNotEmpty) ...[
+                                const PopupMenuDivider(),
+                                PopupMenuItem(
+                                  value: 'export',
+                                  child: Text(
+                                    'Export all (${_documents.length})',
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                        ),
+                        ],
                       ),
                     ),
                   ),
-
-                  // Add Document Button
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _showAddDocumentModal,
-                          icon: const Icon(Icons.add_circle_outline, size: 20),
-                          label: const Text(
-                            'Add Document',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0d6efd),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Export Button
-                  if (_documents.isNotEmpty)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: _exportAllDocuments,
-                            icon: const Icon(Icons.download, size: 18),
-                            label: Text(
-                              'Export All Documents (${_documents.length})',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF0d6efd),
-                              side: const BorderSide(color: Color(0xFF0d6efd)),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
 
                   const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
@@ -1019,22 +936,6 @@ class _DocumentsScreenState extends State<DocumentsScreen>
                                     color: Color(0xFF6c757d),
                                   ),
                                 ),
-                                if (_documents.isEmpty) ...[
-                                  const SizedBox(height: 16),
-                                  ElevatedButton.icon(
-                                    onPressed: _showAddDocumentModal,
-                                    icon: const Icon(Icons.add_circle_outline),
-                                    label: const Text('Add First Document'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF0d6efd),
-                                      foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 24,
-                                        vertical: 12,
-                                      ),
-                                    ),
-                                  ),
-                                ],
                               ],
                             ),
                           ),
@@ -1044,7 +945,7 @@ class _DocumentsScreenState extends State<DocumentsScreen>
                             Responsive.getPadding(context),
                             0,
                             Responsive.getPadding(context),
-                            16,
+                            24,
                           ),
                           sliver:
                               Responsive.isTablet(context) ||
@@ -1094,6 +995,34 @@ class _DocumentsScreenState extends State<DocumentsScreen>
                 ],
               ),
             ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            border: Border(top: BorderSide(color: borderColor)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              ElevatedButton.icon(
+                onPressed: _showAddDocumentModal,
+                icon: const Icon(Icons.add, size: 20),
+                label: const Text('Add document'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1121,16 +1050,16 @@ class _DocumentsScreenState extends State<DocumentsScreen>
 
     if (isExpired) {
       statusColor = const Color(0xFFdc3545); // Red
-      statusBgTint = isDark ? const Color(0xFF2d1f1f) : const Color(0xFFfff5f5);
+      statusBgTint = cardBg;
       statusBadge = 'EXPIRED';
     } else if (isExpiringSoon) {
       statusColor = const Color(0xFFffc107); // Yellow/Amber
-      statusBgTint = isDark ? const Color(0xFF2d2a1f) : const Color(0xFffffef5);
+      statusBgTint = cardBg;
       statusBadge = 'EXPIRING SOON';
     } else if (isValid) {
       statusColor = const Color(0xFF28a745); // Green
-      statusBgTint = isDark ? const Color(0xFF1f2d1f) : const Color(0xFFf5fff5);
-      statusBadge = null; // No badge for valid docs
+      statusBgTint = cardBg;
+      statusBadge = 'VALID';
     } else {
       statusColor = isDark ? const Color(0xFF404040) : const Color(0xFFDEE2E6);
       statusBgTint = cardBg;
@@ -1138,17 +1067,16 @@ class _DocumentsScreenState extends State<DocumentsScreen>
     }
 
     // Border styling
-    final borderColor = (isExpired || isExpiringSoon || isValid)
-        ? statusColor
-        : (isDark ? const Color(0xFF404040) : const Color(0xFFDEE2E6));
-    final borderWidth = (isExpired || isExpiringSoon) ? 2.0 : 1.5;
+    final borderColor = isDark
+        ? const Color(0xFF404040)
+        : const Color(0xFFDEE2E6);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: statusBgTint,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor, width: borderWidth),
+        border: Border.all(color: borderColor),
       ),
       child: Material(
         color: Colors.transparent,

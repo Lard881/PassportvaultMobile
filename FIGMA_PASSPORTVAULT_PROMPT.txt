@@ -1,0 +1,74 @@
+Design a complete, polished UI/UX redesign for PassportVault, an existing secure personal and family document-management product. Create one cohesive design system for the responsive website/PWA (desktop, tablet, phone) and the native Android app.
+
+ACCURACY RULES
+This is a visual redesign, not a feature-design exercise. Preserve existing behavior. Do not invent features, data, settings, document previews, security guarantees, or actions. The website and Android app may differ: design only what each platform supports; do not imply feature parity. If a capability is uncertain, add it to a “Product Questions” page as “Confirm with product owner” instead of presenting it as an existing feature. Do not add OCR, AI scanning, payments, or unsupported account types. Use fictional sample data, keep sensitive document contents hidden in lists, and never fabricate legal or security claims. If screenshots or product-owner notes are provided, treat them as the source of truth.
+
+PRODUCT AND DESIGN GOALS
+Profiles are the primary way to organize documents. Users can open a person’s profile, see their documents, and add or manage documents for them. An all-documents view is also available.
+
+Make PassportVault feel trustworthy, calm, modern, premium, and family-friendly—not intimidating. Use a neutral background, restrained navy/blue primary color, and a small teal/green positive accent. Use amber for “Expiring soon” and red for “Expired” and destructive actions. Always pair status color with a text label/icon. Ensure accessible contrast, readable type, generous spacing, consistent alignment, rounded cards, subtle borders/shadows, and consistent icons. Avoid clutter, excessive gradients, and oversized empty space. Define light/dark themes and reusable colors, typography, spacing, buttons, fields, cards, badges, dialogs, toasts, and navigation.
+
+NAVIGATION
+Web desktop: persistent left sidebar with Dashboard, Profiles, Documents, Calendar, Alerts, Notifications, and More; provide predictable account/settings access and unread count where appropriate.
+Web mobile/PWA: compact navigation prioritizing Dashboard, Profiles, Documents, Notifications, and More; keep actions reachable and content uncluttered.
+Android: native-feeling app bar, touch targets, back behavior, dialogs/bottom sheets, offline feedback, and bottom navigation for Dashboard, Profiles, Documents, Notifications, More. Put secondary destinations in More or the existing navigation flow. Do not add a screen on one platform just because the other has it.
+
+DESIGN THESE SCREENS AND STATES
+
+1. AUTHENTICATION
+- Login: PassportVault branding; “Welcome back”; “Sign in to access your secure vault.” Email/password, show/hide password, “Remember email” (never imply password storage), “Forgot password?”, “Sign in”, “Create account”; validation, loading, invalid-credentials states.
+- Sign up: “Create your account”; email, password, confirm password, terms/privacy acknowledgement, “Create account”, sign-in link. Show password requirements only if verified; otherwise note for product confirmation.
+- Forgot/reset password: email and “Send reset link”; sent confirmation; reset form; invalid/expired link, validation, loading, success.
+- App lock: simple locked state and only the unlock method supported/configured on that platform/device.
+
+2. DASHBOARD
+Show a concise greeting and “Here’s your vault at a glance.” Include summary cards for profiles, documents, and items needing attention; “Needs attention” with expired/expiring document, owner, date, and “View document”; upcoming expiries; people/profile cards with document count/status; recent documents with owner/status/date if available; “Add profile” and “Add document” quick actions. Keep it actionable, not analytics-heavy. Include empty, loading, offline, and error/retry states. Do not fabricate counts.
+
+3. PROFILES / PEOPLE
+- List: title “People” or “Profiles”; short explanation; “Search people…”; compact profile-type filter and sort; “Add profile”; cards/rows with photo/initials, name, relationship/type, document count, status. Include empty (“No profiles yet” / “Add your first profile to organize their documents”), no-results, loading, and error/retry states.
+- Details: dedicated responsive screen/page with back navigation, avatar, full name, relationship/type, status, “Add document” primary action, “Edit profile” secondary action, and separate destructive delete. Show only populated profile fields. Add “Documents for [Name]” with count, document rows (name, type, status, expiry if available), and direct add action. Empty: “No documents for [Name] yet.” Include edit and delete-confirmation states; accurately explain deletion consequences only if confirmed.
+
+4. DOCUMENTS
+- All documents: title/subtitle, “Search documents…”, compact type and person (“All people”) filters, secondary sort, “Add document”, and “Export documents” only where supported. Rows show name, type, person, expiry if available, and text status (“Valid”, “Expiring soon”, “Expired”). Hide sensitive numbers/content in lists. Include empty, no-results, loading, and error/retry states.
+- Details: title/type, person, status, and available file information/metadata (file name, number, issue/expiry dates, notes). Show an existing preview only if supported; do not invent an in-app preview. Show only platform-supported actions: Download, Share securely, Edit, Delete. Clearly distinguish delete.
+- Add/edit form: group fields as “Document,” “Person,” and “Dates and notes.” Use supported fields: name, type, person/profile, number, issue date, expiry date, notes, file picker/upload. When opened from a profile, preselect and show that person. Show file types/limits only if verified. Include cancel/save, validation, uploading, failure, and success states.
+
+5. CALENDAR
+“Expiry calendar,” month navigation, clear calendar grid marking expiry dates, selected-date document list, document/person/status/date. Include no-expiry month, empty selected date, loading, and error states. Do not rely on color alone.
+
+6. ALERTS AND NOTIFICATIONS
+- Alerts: group supported expired, expiring-soon, and other alert types; show document, person, date/status, and “View document” where supported; reassuring all-clear state.
+- Notifications: read/unread, type, concise message, date/time if available; “Mark all as read” only if supported; empty/loading/error states.
+- Notification settings: only existing preferences on that platform (such as expiry reminders, push/email, weekly digest where available); accessible switches, explanatory labels, confirmation. Do not promise delivery or add unsupported types.
+
+7. SECURE SHARING
+- Sharing page: plain-language explanation, active shares with document/type, expiry and view count/limit if available, supported copy/share/revoke actions; select a document; empty state and clear create action.
+- Create flow: make selected document obvious; show only verified controls (expiration, password, view limit where available); “Create secure link,” validation/failure, and success with supported copy/share actions. Do not overstate security.
+- Public recipient page: outside signed-in vault; reveal only relevant document/access details. Show password gate only if protected; include incorrect password, expired, revoked, or invalid link states where supported. Keep private details hidden until access is granted.
+
+8. MORE, SETTINGS, HELP
+- More: organized secondary destinations only where present: Calendar, Alerts, Notification Settings, Secure Sharing, Backup & Restore, Settings, Activity Log, User Guide, Support, Terms, Privacy. Include account area/sign-out only where supported.
+- Settings: only actual settings on that platform (for example theme, password change, app lock/device authentication, language, notifications). Confirm sensitive changes. Do not invent quotas, sync guarantees, or security options.
+- Activity log: chronological action, item, time, icon; filters only if supported; empty/loading states.
+- Backup & Restore: explain purpose; show only supported manual/automatic/complete backup controls and history. Create/download/restore only where supported. Warn clearly that restore may replace current data. Include progress, success, failure, and empty states. Do not claim backup contents unless verified.
+- User Guide: grouped topics for getting started, profiles, documents, expiry, sharing, backup, security, settings.
+- Support: show actual contact options; form only if supported.
+- Terms/privacy: readable informational layout with title, last-updated date if available, headings, comfortable line length. Use clearly marked replacement placeholders, never invented legal text.
+
+GLOBAL COMPONENTS AND PROTOTYPE
+Create reusable variants for primary/secondary/text/destructive buttons; search, dropdown, date, upload, checkbox, switch, password fields; profile/document cards; status badges; notification rows; summary cards; empty/skeleton states; dialogs, bottom sheets, banners, toasts, and refresh indicators. Include relevant loading, success, validation, offline, permission, expired/revoked, empty, and retry states. Use concise, friendly copy and consistent terminology. Confirm before showing destructive actions.
+
+Prototype these supported flows:
+1. Dashboard → person → their documents → document details → supported edit/download/share action.
+2. Profiles → add profile → open profile → add document with person preselected.
+3. Documents → search/filter by person/type → details → supported edit/download.
+4. Details → secure share → create link → supported copy/share.
+5. Calendar/alert → relevant document.
+6. Settings → change a supported preference → confirmation.
+7. Public link → password gate if needed → access or correct unavailable/expired state.
+
+FIGMA FILE AND WORKFLOW
+Create pages named “Design System,” “Web – Desktop,” “Web – Mobile/PWA,” “Android,” “Prototype,” and “Product Questions.”
+Work in the same file in stages: (1) design system/navigation; (2) high-fidelity Dashboard, Profiles, Profile Details, Documents, Document Details for desktop, mobile/PWA, and Android; (3) all remaining applicable screens and states; (4) connect prototypes and check consistency. Complete every applicable screen—do not stop after the core screens. Keep design decisions, components, terminology, and spacing consistent. Put uncertainties on “Product Questions,” not in user-facing screens.
+
+Use Auto Layout, reusable components/variants, and sensible layer names. Create desktop, tablet, and phone examples; show layouts reflowing rather than merely shrinking. Label each frame with platform, screen, and state. Keep designs feasible for a React PWA and Flutter Android app. Avoid decoration that makes sensitive information harder to read or actions harder to find.

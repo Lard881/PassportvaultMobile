@@ -10,15 +10,16 @@ import '../config/app_config.dart';
 class ApiService {
   static const _storage = FlutterSecureStorage();
   static const String _tokenKey = 'pv_token';
+  static const String _savedEmailKey = 'pv_saved_email';
+  static const String _savedPasswordKey = 'pv_saved_password';
 
   static dynamic _deepConvertValue(dynamic value) {
     if (value is Map) {
       // Convert any Map type (including LinkedMap) to Map<String, dynamic>
       return Map<String, dynamic>.from(
-        value.map((key, val) => MapEntry(
-          key.toString(),
-          _deepConvertValue(val),
-        )),
+        value.map(
+          (key, val) => MapEntry(key.toString(), _deepConvertValue(val)),
+        ),
       );
     } else if (value is List) {
       return value.map((item) => _deepConvertValue(item)).toList();
@@ -41,6 +42,26 @@ class ApiService {
     await _storage.delete(key: _tokenKey);
   }
 
+  static Future<void> saveRememberedCredentials(
+    String email,
+    String password,
+  ) async {
+    await _storage.write(key: _savedEmailKey, value: email);
+    await _storage.write(key: _savedPasswordKey, value: password);
+  }
+
+  static Future<Map<String, String?>> getRememberedCredentials() async {
+    return {
+      'email': await _storage.read(key: _savedEmailKey),
+      'password': await _storage.read(key: _savedPasswordKey),
+    };
+  }
+
+  static Future<void> clearRememberedCredentials() async {
+    await _storage.delete(key: _savedEmailKey);
+    await _storage.delete(key: _savedPasswordKey);
+  }
+
   static VoidCallback? onUnauthorized;
 
   // Make authenticated request
@@ -52,14 +73,9 @@ class ApiService {
   }) async {
     // DEBUG: Log every API call
     debugPrint('🔵 API CALL: $method $endpoint');
-    if (body != null) {
-      debugPrint('   Body: ${jsonEncode(body)}');
-    }
-    
+
     final url = Uri.parse('${AppConfig.apiBaseUrl}$endpoint');
-    final headers = {
-      'Content-Type': 'application/json',
-    };
+    final headers = {'Content-Type': 'application/json'};
 
     if (requiresAuth) {
       final token = await getToken();
@@ -72,46 +88,56 @@ class ApiService {
 
     try {
       final startTime = DateTime.now();
-      
+
       switch (method.toUpperCase()) {
         case 'GET':
-          response = await http.get(url, headers: headers).timeout(
-            const Duration(seconds: 30),
-            onTimeout: () => throw Exception('Request timeout'),
-          );
+          response = await http
+              .get(url, headers: headers)
+              .timeout(
+                const Duration(seconds: 30),
+                onTimeout: () => throw Exception('Request timeout'),
+              );
           break;
         case 'POST':
-          response = await http.post(
-            url,
-            headers: headers,
-            body: body != null ? jsonEncode(body) : null,
-          ).timeout(
-            const Duration(seconds: 30),
-            onTimeout: () => throw Exception('Request timeout'),
-          );
+          response = await http
+              .post(
+                url,
+                headers: headers,
+                body: body != null ? jsonEncode(body) : null,
+              )
+              .timeout(
+                const Duration(seconds: 30),
+                onTimeout: () => throw Exception('Request timeout'),
+              );
           break;
         case 'PUT':
-          response = await http.put(
-            url,
-            headers: headers,
-            body: body != null ? jsonEncode(body) : null,
-          ).timeout(
-            const Duration(seconds: 30),
-            onTimeout: () => throw Exception('Request timeout'),
-          );
+          response = await http
+              .put(
+                url,
+                headers: headers,
+                body: body != null ? jsonEncode(body) : null,
+              )
+              .timeout(
+                const Duration(seconds: 30),
+                onTimeout: () => throw Exception('Request timeout'),
+              );
           break;
         case 'DELETE':
-          response = await http.delete(url, headers: headers).timeout(
-            const Duration(seconds: 30),
-            onTimeout: () => throw Exception('Request timeout'),
-          );
+          response = await http
+              .delete(url, headers: headers)
+              .timeout(
+                const Duration(seconds: 30),
+                onTimeout: () => throw Exception('Request timeout'),
+              );
           break;
         default:
           throw Exception('Unsupported HTTP method: $method');
       }
 
       final duration = DateTime.now().difference(startTime);
-      debugPrint('✅ API SUCCESS: $method $endpoint (${duration.inMilliseconds}ms) - Status: ${response.statusCode}');
+      debugPrint(
+        '✅ API SUCCESS: $method $endpoint (${duration.inMilliseconds}ms) - Status: ${response.statusCode}',
+      );
 
       // Check status code
       if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -122,38 +148,39 @@ class ApiService {
           if (converted is Map<String, dynamic>) {
             return converted;
           }
-          return {
-            'success': true,
-            'data': converted,
-          };
+          return {'success': true, 'data': converted};
         } catch (e) {
           debugPrint('⚠️ JSON decode error: $e');
           // If JSON decode fails, return raw response
-          return {
-            'success': true,
-            'data': response.body,
-          };
+          return {'success': true, 'data': response.body};
         }
       } else if (response.statusCode == 404) {
         debugPrint('⚠️ API 404: $method $endpoint - Route not found');
-        return {
-          'success': false,
-          'message': 'Route not found',
-          'status': 404,
-        };
+        try {
+          final error = jsonDecode(response.body);
+          return {
+            'success': false,
+            'message': error['message'] ?? 'Route not found',
+            'status': 404,
+          };
+        } catch (_) {
+          return {
+            'success': false,
+            'message': 'Route not found',
+            'status': 404,
+          };
+        }
       } else if (response.statusCode == 401) {
         debugPrint('❌ API 401: $method $endpoint - Unauthorized');
         await deleteToken();
         if (onUnauthorized != null) {
           onUnauthorized!();
         }
-        return {
-          'success': false,
-          'message': 'Unauthorized',
-          'status': 401,
-        };
+        return {'success': false, 'message': 'Unauthorized', 'status': 401};
       } else {
-        debugPrint('❌ API ERROR: $method $endpoint - Status: ${response.statusCode}');
+        debugPrint(
+          '❌ API ERROR: $method $endpoint - Status: ${response.statusCode}',
+        );
         try {
           final error = jsonDecode(response.body);
           return {
@@ -171,7 +198,7 @@ class ApiService {
       }
     } catch (e) {
       debugPrint('❌ API EXCEPTION: $method $endpoint - $e');
-      
+
       // Handle specific error types for better offline detection
       if (e is SocketException) {
         return {
@@ -188,18 +215,17 @@ class ApiService {
           'status': 0,
         };
       }
-      
-      return {
-        'success': false,
-        'message': 'Network error: $e',
-        'status': 0,
-      };
+
+      return {'success': false, 'message': 'Network error: $e', 'status': 0};
     }
   }
 
   // ==================== AUTH APIs ====================
 
-  static Future<Map<String, dynamic>> login(String email, String password) async {
+  static Future<Map<String, dynamic>> login(
+    String email,
+    String password,
+  ) async {
     return await _makeRequest(
       'POST',
       '/auth/login',
@@ -216,11 +242,7 @@ class ApiService {
     return await _makeRequest(
       'POST',
       '/auth/signup',
-      body: {
-        'fullName': fullName,
-        'email': email,
-        'password': password,
-      },
+      body: {'fullName': fullName, 'email': email, 'password': password},
       requiresAuth: false,
     );
   }
@@ -257,10 +279,7 @@ class ApiService {
     return await _makeRequest(
       'POST',
       '/auth/change-password',
-      body: {
-        'currentPassword': currentPassword,
-        'newPassword': newPassword,
-      },
+      body: {'currentPassword': currentPassword, 'newPassword': newPassword},
     );
   }
 
@@ -272,14 +291,11 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> deleteAccount() async {
-    try {
-      final response = await _makeRequest('DELETE', '/auth/account');
+    final response = await _makeRequest('DELETE', '/auth/account');
+    if (response['success'] == true) {
       await deleteToken();
-      return response;
-    } catch (e) {
-      await deleteToken();
-      return {'success': true, 'message': 'Account local data cleared'};
     }
+    return response;
   }
 
   // ==================== PROFILES APIs ====================
@@ -296,11 +312,14 @@ class ApiService {
     return await _makeRequest('GET', '/profiles/expiring/soon');
   }
 
-  static Map<String, dynamic> _mapProfileDataToSnakeCase(Map<String, dynamic> data) {
+  static Map<String, dynamic> _mapProfileDataToSnakeCase(
+    Map<String, dynamic> data,
+  ) {
     return {
       'full_name': data['full_name'] ?? data['fullName'] ?? '',
       'profile_type': data['profile_type'] ?? data['profileType'] ?? 'Self',
-      'document_number': data['document_number'] ?? data['documentNumber'] ?? '',
+      'document_number':
+          data['document_number'] ?? data['documentNumber'] ?? '',
       'country': data['country'] ?? '',
       'nationality': data['nationality'] ?? '',
       'date_of_birth': data['date_of_birth'] ?? data['dateOfBirth'],
@@ -320,14 +339,22 @@ class ApiService {
   static Future<Map<String, dynamic>> createProfile(
     Map<String, dynamic> profileData,
   ) async {
-    return await _makeRequest('POST', '/profiles', body: _mapProfileDataToSnakeCase(profileData));
+    return await _makeRequest(
+      'POST',
+      '/profiles',
+      body: _mapProfileDataToSnakeCase(profileData),
+    );
   }
 
   static Future<Map<String, dynamic>> updateProfile(
     dynamic id,
     Map<String, dynamic> profileData,
   ) async {
-    return await _makeRequest('PUT', '/profiles/$id', body: _mapProfileDataToSnakeCase(profileData));
+    return await _makeRequest(
+      'PUT',
+      '/profiles/$id',
+      body: _mapProfileDataToSnakeCase(profileData),
+    );
   }
 
   static Future<Map<String, dynamic>> deleteProfile(dynamic id) async {
@@ -341,21 +368,30 @@ class ApiService {
   ) async {
     final token = await getToken();
     final url = Uri.parse('${AppConfig.apiBaseUrl}/profiles/upload-photo');
-    
+
     var request = http.MultipartRequest('POST', url);
     request.headers['Authorization'] = 'Bearer $token';
     request.fields['profile_id'] = profileId.toString();
-    
+
     final fileExtension = photoFile.path.split('.').last.toLowerCase();
-    request.files.add(await http.MultipartFile.fromPath(
-      'photo',
-      photoFile.path,
-      contentType: MediaType('image', fileExtension == 'png' ? 'png' : fileExtension == 'gif' ? 'gif' : 'jpeg'),
-    ));
-    
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'photo',
+        photoFile.path,
+        contentType: MediaType(
+          'image',
+          fileExtension == 'png'
+              ? 'png'
+              : fileExtension == 'gif'
+              ? 'gif'
+              : 'jpeg',
+        ),
+      ),
+    );
+
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);
-    
+
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return jsonDecode(response.body);
     } else {
@@ -434,10 +470,10 @@ class ApiService {
   ) async {
     final token = await getToken();
     final url = Uri.parse('${AppConfig.apiBaseUrl}/documents/upload');
-    
+
     var request = http.MultipartRequest('POST', url);
     request.headers['Authorization'] = 'Bearer $token';
-    
+
     // Add document data as fields, mapping common variations to backend format
     final fields = <String, String>{};
     documentData.forEach((key, value) {
@@ -446,31 +482,37 @@ class ApiService {
       }
     });
 
-    if (documentData.containsKey('documentName') && !fields.containsKey('document_name')) {
+    if (documentData.containsKey('documentName') &&
+        !fields.containsKey('document_name')) {
       fields['document_name'] = documentData['documentName'].toString();
     }
-    if (documentData.containsKey('profile') && !fields.containsKey('profile_id')) {
+    if (documentData.containsKey('profile') &&
+        !fields.containsKey('profile_id')) {
       fields['profile_id'] = documentData['profile'].toString();
     }
-    if (documentData.containsKey('documentNumber') && !fields.containsKey('document_number')) {
+    if (documentData.containsKey('documentNumber') &&
+        !fields.containsKey('document_number')) {
       fields['document_number'] = documentData['documentNumber'].toString();
     }
-    if (documentData.containsKey('dateOfIssue') && !fields.containsKey('issue_date')) {
+    if (documentData.containsKey('dateOfIssue') &&
+        !fields.containsKey('issue_date')) {
       fields['issue_date'] = documentData['dateOfIssue'].toString();
     }
-    if (documentData.containsKey('dateOfExpiry') && !fields.containsKey('expiry_date')) {
+    if (documentData.containsKey('dateOfExpiry') &&
+        !fields.containsKey('expiry_date')) {
       fields['expiry_date'] = documentData['dateOfExpiry'].toString();
     }
-    if (documentData.containsKey('notes') && !fields.containsKey('description')) {
+    if (documentData.containsKey('notes') &&
+        !fields.containsKey('description')) {
       fields['description'] = documentData['notes'].toString();
     }
 
     request.fields.addAll(fields);
-    
+
     // Add document file
     final fileExtension = documentFile.path.split('.').last.toLowerCase();
     String mimeType;
-    
+
     switch (fileExtension) {
       case 'pdf':
         mimeType = 'application/pdf';
@@ -485,17 +527,19 @@ class ApiService {
       default:
         mimeType = 'application/octet-stream';
     }
-    
+
     // Backend expects 'file' via upload.single('file')
-    request.files.add(await http.MultipartFile.fromPath(
-      'file',
-      documentFile.path,
-      contentType: MediaType.parse(mimeType),
-    ));
-    
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'file',
+        documentFile.path,
+        contentType: MediaType.parse(mimeType),
+      ),
+    );
+
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);
-    
+
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return jsonDecode(response.body);
     } else {
@@ -510,12 +554,15 @@ class ApiService {
     Map<String, dynamic> documentData,
   ) async {
     final mappedData = <String, dynamic>{
-      'document_name': documentData['document_name'] ?? documentData['documentName'],
+      'document_name':
+          documentData['document_name'] ?? documentData['documentName'],
       'description': documentData['description'] ?? documentData['notes'],
       'profile_id': documentData['profile_id'] ?? documentData['profile'],
-      'document_number': documentData['document_number'] ?? documentData['documentNumber'],
+      'document_number':
+          documentData['document_number'] ?? documentData['documentNumber'],
       'issue_date': documentData['issue_date'] ?? documentData['dateOfIssue'],
-      'expiry_date': documentData['expiry_date'] ?? documentData['dateOfExpiry'],
+      'expiry_date':
+          documentData['expiry_date'] ?? documentData['dateOfExpiry'],
       if (documentData.containsKey('tags')) 'tags': documentData['tags'],
     };
     return await _makeRequest('PUT', '/documents/$id', body: mappedData);
@@ -525,12 +572,12 @@ class ApiService {
   static Future<List<int>> downloadDocument(dynamic id) async {
     final token = await getToken();
     final url = Uri.parse('${AppConfig.apiBaseUrl}/documents/$id/download');
-    
+
     final response = await http.get(
       url,
       headers: {'Authorization': 'Bearer $token'},
     );
-    
+
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return response.bodyBytes;
     } else {
@@ -538,16 +585,20 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> getDocumentSignedUrl(dynamic id) async {
+    return await _makeRequest('GET', '/documents/$id/signed-url');
+  }
+
   // Export all documents
   static Future<List<int>> exportAllDocuments() async {
     final token = await getToken();
     final url = Uri.parse('${AppConfig.apiBaseUrl}/documents/export');
-    
+
     final response = await http.get(
       url,
       headers: {'Authorization': 'Bearer $token'},
     );
-    
+
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return response.bodyBytes;
     } else {
@@ -594,7 +645,7 @@ class ApiService {
   }) async {
     String endpoint = '/activity';
     final params = <String>[];
-    
+
     if (filter != null && filter.isNotEmpty) {
       params.add('action_type=$filter');
     }
@@ -604,11 +655,11 @@ class ApiService {
     if (endDate != null && endDate.isNotEmpty) {
       params.add('end_date=$endDate');
     }
-    
+
     if (params.isNotEmpty) {
       endpoint += '?${params.join('&')}';
     }
-    
+
     return await _makeRequest('GET', endpoint);
   }
 
@@ -624,6 +675,16 @@ class ApiService {
 
   static Future<Map<String, dynamic>> getSettings() async {
     return await _makeRequest('GET', '/settings');
+  }
+
+  static Future<Map<String, dynamic>> updateEmailNotifications(
+    bool enabled,
+  ) async {
+    return await _makeRequest(
+      'PUT',
+      '/settings',
+      body: {'email_notifications': enabled},
+    );
   }
 
   static Future<Map<String, dynamic>> updateSettings(
@@ -672,7 +733,7 @@ class ApiService {
     if (res['success'] == true && res['data'] != null) return res;
     return {
       'success': true,
-      'data': {'used': 0, 'total': 104857600}
+      'data': {'used': 0, 'total': 104857600},
     };
   }
 
@@ -685,15 +746,27 @@ class ApiService {
   static Future<Map<String, dynamic>> getLatestBackup() async {
     final res = await _makeRequest('GET', '/backups/latest');
     if (res['success'] == true) return res;
-    return {'success': true, 'data': null};
+    if (res['status'] == 404 && res['message'] == 'No backup found') {
+      return {'success': true, 'data': null};
+    }
+    return res;
   }
 
-  static Future<Map<String, dynamic>> createBackup({String type = 'manual'}) async {
+  static Future<Map<String, dynamic>> createBackup({
+    String type = 'manual',
+  }) async {
     return await _makeRequest('POST', '/backups/create', body: {'type': type});
   }
 
-  static Future<Map<String, dynamic>> restoreBackup(dynamic backupId, {String mode = 'overwrite'}) async {
-    return await _makeRequest('POST', '/backups/$backupId/restore', body: {'restore_mode': mode, 'mode': mode});
+  static Future<Map<String, dynamic>> restoreBackup(
+    dynamic backupId, {
+    String mode = 'overwrite',
+  }) async {
+    return await _makeRequest(
+      'POST',
+      '/backups/$backupId/restore',
+      body: {'restore_mode': mode, 'mode': mode},
+    );
   }
 
   static Future<Map<String, dynamic>> deleteBackup(dynamic backupId) async {

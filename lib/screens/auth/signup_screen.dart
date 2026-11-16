@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../config/app_theme.dart';
+import '../../widgets/modals/privacy_modal.dart';
+import '../../widgets/modals/terms_modal.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -16,7 +19,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  
+
   bool _showPassword = false;
   bool _showConfirmPassword = false;
   bool _agreeToTerms = false;
@@ -85,7 +88,7 @@ class _SignupScreenState extends State<SignupScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('You must agree to the terms and conditions'),
-          backgroundColor: Colors.red,
+          backgroundColor: AppTheme.dangerColor,
         ),
       );
       return;
@@ -105,17 +108,19 @@ class _SignupScreenState extends State<SignupScreen> {
 
       if (result['success']) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Account created successfully!'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: Text(result['message'] ?? 'Account created successfully!'),
+            backgroundColor: AppTheme.successColor,
           ),
         );
         Navigator.pushReplacementNamed(context, '/');
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result['message'] ?? 'Sign up failed. Please try again.'),
-            backgroundColor: Colors.red,
+            content: Text(
+              result['message'] ?? 'Sign up failed. Please try again.',
+            ),
+            backgroundColor: AppTheme.dangerColor,
           ),
         );
       }
@@ -124,7 +129,7 @@ class _SignupScreenState extends State<SignupScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(error.toString()),
-          backgroundColor: Colors.red,
+          backgroundColor: AppTheme.dangerColor,
         ),
       );
     } finally {
@@ -135,58 +140,18 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   void _showTermsModal() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Terms & Conditions'),
-        content: const SingleChildScrollView(
-          child: Text(
-            'Terms and Conditions content here...\n\n'
-            'By using PassportVault, you agree to these terms.',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
+    showDialog(context: context, builder: (context) => const TermsModal());
   }
 
   void _showPrivacyModal() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Privacy Policy'),
-        content: const SingleChildScrollView(
-          child: Text(
-            'Privacy Policy content here...\n\n'
-            'Your privacy is important to us.',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
+    showDialog(context: context, builder: (context) => const PrivacyModal());
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF0d6efd), Color(0xFF0b5ed7)],
-          ),
-        ),
+        decoration: const BoxDecoration(color: AppTheme.lightBgSecondary),
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
@@ -215,7 +180,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         width: 80,
                         height: 80,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF0d6efd),
+                          color: AppTheme.primaryColor,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Center(
@@ -284,8 +249,13 @@ class _SignupScreenState extends State<SignupScreen> {
                           hintText: 'Create a password',
                           border: const OutlineInputBorder(),
                           suffixIcon: IconButton(
-                            icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility),
-                            onPressed: () => setState(() => _showPassword = !_showPassword),
+                            icon: Icon(
+                              _showPassword
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                            ),
+                            onPressed: () =>
+                                setState(() => _showPassword = !_showPassword),
                           ),
                         ),
                         obscureText: !_showPassword,
@@ -302,8 +272,15 @@ class _SignupScreenState extends State<SignupScreen> {
                           hintText: 'Confirm your password',
                           border: const OutlineInputBorder(),
                           suffixIcon: IconButton(
-                            icon: Icon(_showConfirmPassword ? Icons.visibility_off : Icons.visibility),
-                            onPressed: () => setState(() => _showConfirmPassword = !_showConfirmPassword),
+                            icon: Icon(
+                              _showConfirmPassword
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                            ),
+                            onPressed: () => setState(
+                              () =>
+                                  _showConfirmPassword = !_showConfirmPassword,
+                            ),
                           ),
                         ),
                         obscureText: !_showConfirmPassword,
@@ -351,9 +328,13 @@ class _SignupScreenState extends State<SignupScreen> {
                         children: [
                           Checkbox(
                             value: _agreeToTerms,
-                            onChanged: _isLoading ? null : (value) {
-                              setState(() => _agreeToTerms = value ?? false);
-                            },
+                            onChanged: _isLoading
+                                ? null
+                                : (value) {
+                                    setState(
+                                      () => _agreeToTerms = value ?? false,
+                                    );
+                                  },
                           ),
                           Expanded(
                             child: Padding(
@@ -362,7 +343,10 @@ class _SignupScreenState extends State<SignupScreen> {
                                 children: [
                                   const Text(
                                     'I agree to the ',
-                                    style: TextStyle(fontSize: 14, color: Color(0xFF6c757d)),
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Color(0xFF6c757d),
+                                    ),
                                   ),
                                   GestureDetector(
                                     onTap: _showTermsModal,
@@ -370,14 +354,17 @@ class _SignupScreenState extends State<SignupScreen> {
                                       'Terms & Conditions',
                                       style: TextStyle(
                                         fontSize: 14,
-                                        color: Color(0xFF0d6efd),
+                                        color: AppTheme.primaryColor,
                                         decoration: TextDecoration.underline,
                                       ),
                                     ),
                                   ),
                                   const Text(
                                     ' and ',
-                                    style: TextStyle(fontSize: 14, color: Color(0xFF6c757d)),
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Color(0xFF6c757d),
+                                    ),
                                   ),
                                   GestureDetector(
                                     onTap: _showPrivacyModal,
@@ -385,7 +372,7 @@ class _SignupScreenState extends State<SignupScreen> {
                                       'Privacy Policy',
                                       style: TextStyle(
                                         fontSize: 14,
-                                        color: Color(0xFF0d6efd),
+                                        color: AppTheme.primaryColor,
                                         decoration: TextDecoration.underline,
                                       ),
                                     ),
@@ -403,10 +390,13 @@ class _SignupScreenState extends State<SignupScreen> {
                         width: double.infinity,
                         height: 50,
                         child: ElevatedButton(
-                          onPressed: _isLoading || !_agreeToTerms ? null : _handleSubmit,
+                          onPressed: _isLoading || !_agreeToTerms
+                              ? null
+                              : _handleSubmit,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0d6efd),
-                            disabledBackgroundColor: const Color(0xFF0d6efd).withValues(alpha: 0.5),
+                            backgroundColor: AppTheme.primaryColor,
+                            disabledBackgroundColor: AppTheme.primaryColor
+                                .withValues(alpha: 0.5),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -417,7 +407,9 @@ class _SignupScreenState extends State<SignupScreen> {
                                   height: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
                                   ),
                                 )
                               : const Row(
@@ -445,15 +437,21 @@ class _SignupScreenState extends State<SignupScreen> {
                         children: [
                           const Text(
                             'Already have an account? ',
-                            style: TextStyle(fontSize: 14, color: Color(0xFF6c757d)),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF6c757d),
+                            ),
                           ),
                           GestureDetector(
-                            onTap: () => Navigator.pushReplacementNamed(context, '/login'),
+                            onTap: () => Navigator.pushReplacementNamed(
+                              context,
+                              '/login',
+                            ),
                             child: const Text(
                               'Sign In',
                               style: TextStyle(
                                 fontSize: 14,
-                                color: Color(0xFF0d6efd),
+                                color: AppTheme.primaryColor,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../config/app_theme.dart';
 import '../../services/api_service.dart';
 
 class SupportScreen extends StatefulWidget {
@@ -15,6 +16,7 @@ class _SupportScreenState extends State<SupportScreen> {
   final _emailController = TextEditingController();
   final _subjectController = TextEditingController();
   final _messageController = TextEditingController();
+  final _faqKey = GlobalKey();
   String _category = 'General';
   bool _isSending = false;
 
@@ -48,7 +50,7 @@ class _SupportScreenState extends State<SupportScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Message sent! We\'ll get back to you within 24 hours.'),
-              backgroundColor: Colors.green,
+              backgroundColor: AppTheme.successColor,
             ),
           );
 
@@ -67,7 +69,7 @@ class _SupportScreenState extends State<SupportScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to send message: $error'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppTheme.dangerColor,
           ),
         );
       }
@@ -93,17 +95,25 @@ class _SupportScreenState extends State<SupportScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? const Color(0xFFF4F4F5) : const Color(0xFF212529);
-    final subtitleColor = isDark ? const Color(0xFFA1A1AA) : const Color(0xFF6C757D);
-    final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF3F3F46) : const Color(0xFFDEE2E6);
+    final textColor = isDark
+        ? AppTheme.darkTextPrimary
+        : AppTheme.lightTextPrimary;
+    final subtitleColor = isDark
+        ? AppTheme.darkTextSecondary
+        : AppTheme.lightTextSecondary;
+    final cardBg = isDark ? AppTheme.darkBgCard : AppTheme.lightBgCard;
+    final borderColor = isDark
+        ? AppTheme.darkBorderColor
+        : AppTheme.lightBorderColor;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF8F9FA),
+      backgroundColor: isDark
+          ? AppTheme.darkBgPrimary
+          : AppTheme.lightBgSecondary,
       appBar: AppBar(
         title: const Text('Support', style: TextStyle(fontWeight: FontWeight.w700)),
-        backgroundColor: const Color(0xFF0d6efd),
-        foregroundColor: Colors.white,
+        backgroundColor: cardBg,
+        foregroundColor: textColor,
         elevation: 0,
       ),
       body: ListView(
@@ -145,7 +155,14 @@ class _SupportScreenState extends State<SupportScreen> {
                   'Visit FAQ',
                   Icons.help_outline,
                   () {
-                    // Navigate to FAQ section
+                    final faqContext = _faqKey.currentContext;
+                    if (faqContext != null) {
+                      Scrollable.ensureVisible(
+                        faqContext,
+                        duration: const Duration(milliseconds: 350),
+                        curve: Curves.easeInOut,
+                      );
+                    }
                   },
                 ),
               ),
@@ -290,7 +307,7 @@ class _SupportScreenState extends State<SupportScreen> {
                     child: ElevatedButton(
                       onPressed: _isSending ? null : _submitForm,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0d6efd),
+                        backgroundColor: AppTheme.primaryColor,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
@@ -322,6 +339,7 @@ class _SupportScreenState extends State<SupportScreen> {
           // FAQ Section
           Text(
             'Frequently Asked Questions',
+            key: _faqKey,
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w600,
@@ -363,10 +381,16 @@ class _SupportScreenState extends State<SupportScreen> {
 
   Widget _buildContactCard(String title, String subtitle, IconData icon, VoidCallback onTap) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? const Color(0xFF242424) : Colors.white;
-    final textColor = isDark ? const Color(0xFFF8F9FA) : const Color(0xFF212529);
-    final subtitleColor = isDark ? const Color(0xFFADB5BD) : const Color(0xFF6C757D);
-    final borderColor = isDark ? const Color(0xFF404040) : const Color(0xFFDEE2E6);
+    final cardBg = isDark ? AppTheme.darkBgCard : AppTheme.lightBgCard;
+    final textColor = isDark
+        ? AppTheme.darkTextPrimary
+        : AppTheme.lightTextPrimary;
+    final subtitleColor = isDark
+        ? AppTheme.darkTextSecondary
+        : AppTheme.lightTextSecondary;
+    final borderColor = isDark
+        ? AppTheme.darkBorderColor
+        : AppTheme.lightBorderColor;
 
     return InkWell(
       onTap: onTap,
@@ -380,7 +404,7 @@ class _SupportScreenState extends State<SupportScreen> {
         ),
         child: Column(
           children: [
-            Icon(icon, size: 32, color: const Color(0xFF0d6efd)),
+            Icon(icon, size: 32, color: AppTheme.primaryColor),
             const SizedBox(height: 8),
             Text(
               title,
@@ -407,10 +431,16 @@ class _SupportScreenState extends State<SupportScreen> {
 
   Widget _buildFAQItem(String question, String answer) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? const Color(0xFF242424) : Colors.white;
-    final textColor = isDark ? const Color(0xFFF8F9FA) : const Color(0xFF212529);
-    final subtitleColor = isDark ? const Color(0xFFADB5BD) : const Color(0xFF6C757D);
-    final borderColor = isDark ? const Color(0xFF404040) : const Color(0xFFDEE2E6);
+    final cardBg = isDark ? AppTheme.darkBgCard : AppTheme.lightBgCard;
+    final textColor = isDark
+        ? AppTheme.darkTextPrimary
+        : AppTheme.lightTextPrimary;
+    final subtitleColor = isDark
+        ? AppTheme.darkTextSecondary
+        : AppTheme.lightTextSecondary;
+    final borderColor = isDark
+        ? AppTheme.darkBorderColor
+        : AppTheme.lightBorderColor;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),

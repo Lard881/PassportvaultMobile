@@ -164,9 +164,19 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
                         cancelText: 'Cancel',
                         type: 'danger',
                         onConfirm: () async {
-                          await authProvider.logout();
+                          final didLogout = await authProvider.logout();
                           if (context.mounted) {
-                            Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                            if (didLogout) {
+                              Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    authProvider.errorMessage ?? 'Unable to log out.',
+                                  ),
+                                ),
+                              );
+                            }
                           }
                         },
                       ),

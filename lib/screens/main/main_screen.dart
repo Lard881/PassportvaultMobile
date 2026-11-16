@@ -15,6 +15,7 @@ import '../../widgets/offline_banner.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/locale_provider.dart';
 import '../../providers/connectivity_provider.dart';
+import '../../config/app_theme.dart';
 
 class MainScreen extends StatefulWidget {
   final int initialIndex;
@@ -177,7 +178,7 @@ class _MainScreenState extends State<MainScreen> {
                 onTap: _navigateToTab,
                 type: BottomNavigationBarType.fixed,
                 backgroundColor: isDark ? const Color(0xFF242424) : Colors.white,
-                selectedItemColor: const Color(0xFF0d6efd),
+                selectedItemColor: AppTheme.primaryColor,
                 unselectedItemColor: isDark ? const Color(0xFFadb5bd) : const Color(0xFF6c757d),
                 selectedFontSize: 12,
                 unselectedFontSize: 12,

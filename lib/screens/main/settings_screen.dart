@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/locale_provider.dart';
+import '../../config/app_theme.dart';
 import '../../services/api_service.dart';
 import '../../services/biometric_auth_service.dart';
 import '../../widgets/modals/change_password_modal.dart';
@@ -12,7 +12,6 @@ import '../../widgets/modals/privacy_modal.dart';
 import '../../widgets/modals/terms_modal.dart';
 import '../info/user_guide_screen.dart';
 import '../info/support_screen.dart';
-import '../../utils/responsive.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -37,19 +36,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadSettings() async {
     setState(() => _isLoading = true);
-    
-    try {
-      final prefs = await SharedPreferences.getInstance();
 
+    try {
       final response = await ApiService.getSettings();
-      
+
       if (response['success'] == true && response['data'] != null) {
         final settings = response['data'];
         setState(() {
-          
           final backendLang = settings['language']?.toString() ?? 'English';
-          final validLanguages = ['English', 'Spanish', 'French', 'German', 'Chinese', 'Arabic', 'Korean'];
-          _language = validLanguages.contains(backendLang) ? backendLang : 'English';
+          final validLanguages = [
+            'English',
+            'Spanish',
+            'French',
+            'German',
+            'Chinese',
+            'Arabic',
+            'Korean',
+          ];
+          _language = validLanguages.contains(backendLang)
+              ? backendLang
+              : 'English';
         });
       }
 
@@ -101,7 +107,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Device unlock enabled on this device'),
-              backgroundColor: Color(0xFF198754),
+              backgroundColor: AppTheme.successColor,
             ),
           );
         }
@@ -112,8 +118,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(res['message'] ?? 'Failed to enable device authentication'),
-              backgroundColor: const Color(0xFFdc3545),
+              content: Text(
+                res['message'] ?? 'Failed to enable device authentication',
+              ),
+              backgroundColor: AppTheme.dangerColor,
             ),
           );
         }
@@ -138,7 +146,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Remove', style: TextStyle(color: Colors.red)),
+            child: const Text(
+              'Remove',
+              style: TextStyle(color: AppTheme.dangerColor),
+            ),
           ),
         ],
       ),
@@ -150,18 +161,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       } else if (_authMethod == 'pin') {
         await biometricAuthService.removePIN();
       }
-      
+
       setState(() {
         _biometricEnabled = false;
         _authMethod = 'none';
       });
-      
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Authentication removed'),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Authentication removed')));
       }
     }
   }
@@ -169,9 +177,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showBiometricSetupModal() {
     showDialog(
       context: context,
-      builder: (context) => BiometricSetupModal(
-        onSubmit: _handleBiometricSetup,
-      ),
+      builder: (context) =>
+          BiometricSetupModal(onSubmit: _handleBiometricSetup),
     );
   }
 
@@ -199,13 +206,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _authMethod = 'pin';
         });
       }
-      
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${method == 'pin' ? 'App PIN' : 'Device unlock'} enabled on this device.'),
-            backgroundColor: Colors.green,
+            content: Text(
+              '${method == 'pin' ? 'App PIN' : 'Device unlock'} enabled on this device.',
+            ),
+            backgroundColor: AppTheme.successColor,
           ),
         );
       }
@@ -214,7 +222,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to setup authentication: $error'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppTheme.dangerColor,
           ),
         );
       }
@@ -224,30 +232,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showChangePasswordModal() {
     showDialog(
       context: context,
-      builder: (context) => ChangePasswordModal(
-        onSubmit: _handleChangePassword,
-      ),
+      builder: (context) =>
+          ChangePasswordModal(onSubmit: _handleChangePassword),
     );
   }
 
-  Future<String?> _handleChangePassword(String currentPassword, String newPassword) async {
+  Future<String?> _handleChangePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
     try {
-      final response = await ApiService.changePassword(currentPassword, newPassword);
-      
+      final response = await ApiService.changePassword(
+        currentPassword,
+        newPassword,
+      );
+
       if (response['success'] == true) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Password changed successfully! Please login again.'),
-              backgroundColor: Colors.green,
+              content: Text(
+                'Password changed successfully! Please login again.',
+              ),
+              backgroundColor: AppTheme.successColor,
               duration: Duration(seconds: 3),
             ),
           );
           Future.delayed(const Duration(milliseconds: 1200), () async {
             if (mounted) {
-              final authProvider = Provider.of<AuthProvider>(context, listen: false);
-              await authProvider.logout();
-              Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+              final authProvider = Provider.of<AuthProvider>(
+                context,
+                listen: false,
+              );
+              final didLogout = await authProvider.logout();
+              if (!mounted) return;
+              if (didLogout) {
+                Navigator.of(
+                  context,
+                ).pushNamedAndRemoveUntil('/login', (route) => false);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      authProvider.errorMessage ?? 'Unable to log out.',
+                    ),
+                  ),
+                );
+              }
             }
           });
         }
@@ -261,16 +292,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showPrivacyPolicy() {
-    showDialog(
-      context: context,
-      builder: (context) => const PrivacyModal(),
-    );
+    showDialog(context: context, builder: (context) => const PrivacyModal());
   }
 
   void _showTermsAndConditions() {
-    showDialog(
+    showDialog(context: context, builder: (context) => const TermsModal());
+  }
+
+  Future<void> _showThemeOptions(ThemeProvider themeProvider) async {
+    await showDialog<void>(
       context: context,
-      builder: (context) => const TermsModal(),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Theme'),
+        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildThemeOption(
+              dialogContext,
+              themeProvider,
+              ThemeMode.system,
+              'System default',
+            ),
+            _buildThemeOption(
+              dialogContext,
+              themeProvider,
+              ThemeMode.light,
+              'Light',
+            ),
+            _buildThemeOption(
+              dialogContext,
+              themeProvider,
+              ThemeMode.dark,
+              'Dark',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThemeOption(
+    BuildContext dialogContext,
+    ThemeProvider themeProvider,
+    ThemeMode mode,
+    String label,
+  ) {
+    final selected = themeProvider.themeMode == mode;
+    return ListTile(
+      title: Text(label),
+      trailing: selected
+          ? const Icon(Icons.check, color: AppTheme.primaryColor)
+          : null,
+      onTap: () {
+        themeProvider.setTheme(mode);
+        Navigator.pop(dialogContext);
+      },
     );
   }
 
@@ -287,7 +364,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFFdc3545)),
+            style: TextButton.styleFrom(foregroundColor: AppTheme.dangerColor),
             child: const Text('Logout'),
           ),
         ],
@@ -295,14 +372,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     if (confirmed == true && mounted) {
-      try {
-        await ApiService.logout();
-      } catch (_) {}
-      
-      if (mounted) {
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        await authProvider.logout();
-        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final didLogout = await authProvider.logout(revokeSession: true);
+      if (!mounted) return;
+      if (didLogout) {
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil('/login', (route) => false);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(authProvider.errorMessage ?? 'Unable to log out.'),
+          ),
+        );
       }
     }
   }
@@ -311,7 +393,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Account', style: TextStyle(color: Color(0xFFdc3545), fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Delete Account',
+          style: TextStyle(
+            color: AppTheme.dangerColor,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: const Text(
           'Are you sure you want to permanently delete your account and all stored documents? This action CANNOT be undone.',
         ),
@@ -323,7 +411,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(
-              backgroundColor: const Color(0xFFdc3545),
+              backgroundColor: AppTheme.dangerColor,
               foregroundColor: Colors.white,
             ),
             child: const Text('Delete Permanently'),
@@ -333,20 +421,62 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     if (confirmed == true && mounted) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      if (!await authProvider.ensureNoPendingOfflineChanges()) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                authProvider.errorMessage ?? 'Unable to delete the account.',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
       try {
-        await ApiService.deleteAccount();
-      } catch (_) {}
+        final response = await ApiService.deleteAccount();
+        if (response['success'] != true) {
+          throw StateError(
+            response['message']?.toString() ?? 'Account deletion failed',
+          );
+        }
+      } catch (error) {
+        debugPrint('[SettingsScreen] Failed to delete account: $error');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to delete account. Please try again.'),
+              backgroundColor: AppTheme.dangerColor,
+            ),
+          );
+        }
+        return;
+      }
 
       if (mounted) {
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        await authProvider.logout();
-        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Your account has been deleted.'),
-            backgroundColor: Color(0xFFdc3545),
-          ),
-        );
+        final didLogout = await authProvider.logout();
+        if (didLogout) {
+          Navigator.of(
+            context,
+          ).pushNamedAndRemoveUntil('/login', (route) => false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Your account has been deleted.'),
+              backgroundColor: AppTheme.dangerColor,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                authProvider.errorMessage ??
+                    'Your account was deleted, but logout could not finish.',
+              ),
+            ),
+          );
+        }
       }
     }
   }
@@ -357,58 +487,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final localeProvider = Provider.of<LocaleProvider>(context);
     final isDark = themeProvider.isDark;
 
-    final bgColor = isDark ? const Color(0xFF18181B) : const Color(0xFFF8F9FA);
-    final cardBg = isDark ? const Color(0xFF242427) : Colors.white;
-    final textColor = isDark ? const Color(0xFFF4F4F5) : const Color(0xFF212529);
-    final subtitleColor = isDark ? const Color(0xFFA1A1AA) : const Color(0xFF6C757D);
-    final borderColor = isDark ? const Color(0xFF3F3F46) : const Color(0xFFDEE2E6);
-    final tileBg = isDark ? const Color(0xFF2D2D30) : const Color(0xFFE3F2FD);
+    final bgColor = isDark
+        ? AppTheme.darkBgSecondary
+        : AppTheme.lightBgSecondary;
+    final cardBg = isDark ? AppTheme.darkBgCard : AppTheme.lightBgCard;
+    final textColor = isDark
+        ? AppTheme.darkTextPrimary
+        : AppTheme.lightTextPrimary;
+    final subtitleColor = isDark
+        ? AppTheme.darkTextSecondary
+        : AppTheme.lightTextSecondary;
+    final borderColor = isDark
+        ? AppTheme.darkBorderColor
+        : AppTheme.lightBorderColor;
+    final tileBg = isDark
+        ? AppTheme.darkBgSecondary
+        : AppTheme.lightBgSecondary;
 
     if (_isLoading) {
       return Scaffold(
         backgroundColor: bgColor,
         appBar: AppBar(
-          title: Text(localeProvider.tr('settings'), style: const TextStyle(fontWeight: FontWeight.w700)),
-          backgroundColor: const Color(0xFF0d6efd),
-          foregroundColor: Colors.white,
+          title: Text(
+            localeProvider.tr('settings'),
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          backgroundColor: cardBg,
+          foregroundColor: textColor,
           elevation: 0,
         ),
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
-        title: Text(localeProvider.tr('settings'), style: const TextStyle(fontWeight: FontWeight.w700)),
-        backgroundColor: const Color(0xFF0d6efd),
-        foregroundColor: Colors.white,
+        title: Text(
+          localeProvider.tr('settings'),
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+        backgroundColor: cardBg,
+        foregroundColor: textColor,
         elevation: 0,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Page Title
-          Text(
-            localeProvider.tr('settings'),
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-              color: textColor,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            localeProvider.tr('manage_preferences'),
-            style: TextStyle(
-              fontSize: 14,
-              color: subtitleColor,
-            ),
-          ),
-          const SizedBox(height: 24),
-
           // Appearance Card
           _buildCard(
             title: localeProvider.tr('appearance'),
@@ -417,28 +542,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
             textColor: textColor,
             borderColor: borderColor,
             children: [
-              _buildCardSwitchTile(
-                localeProvider.tr('dark_mode'),
-                localeProvider.tr('dark_mode_desc'),
-                themeProvider.isDark,
-                (value) async {
-                  await themeProvider.toggleTheme();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(themeProvider.isDark ? 'Dark mode enabled' : 'Light mode enabled'),
-                        duration: const Duration(seconds: 1),
-                      ),
-                    );
-                  }
-                },
+              _buildNavigationTile(
+                'Theme',
+                themeProvider.themeMode == ThemeMode.system
+                    ? 'System default'
+                    : themeProvider.themeMode == ThemeMode.dark
+                    ? 'Dark'
+                    : 'Light',
+                Icons.palette_outlined,
+                () => _showThemeOptions(themeProvider),
                 textColor,
                 subtitleColor,
+                borderColor,
+                tileBg,
               ),
             ],
           ),
-
-          const SizedBox(height: 16),
 
           const SizedBox(height: 16),
 
@@ -450,17 +569,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             textColor: textColor,
             borderColor: borderColor,
             children: [
-              _buildNavigationTile(
-                'Push Notifications',
-                'Configure expiry reminder notifications',
-                Icons.notifications_active,
-                () => Navigator.pushNamed(context, '/notification-settings'),
-                textColor,
-                subtitleColor,
-                borderColor,
-                tileBg,
-              ),
-              const SizedBox(height: 12),
               _buildCardSwitchTile(
                 'App lock',
                 _biometricEnabled
@@ -479,8 +587,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   icon: const Icon(Icons.key),
                   label: Text(localeProvider.tr('change_password')),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF0d6efd),
-                    side: const BorderSide(color: Color(0xFF0d6efd)),
+                    foregroundColor: AppTheme.primaryColor,
+                    side: const BorderSide(color: AppTheme.primaryColor),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
@@ -506,8 +614,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     icon: const Icon(Icons.delete),
                     label: Text(localeProvider.tr('remove_auth')),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFFdc3545),
-                      side: const BorderSide(color: Color(0xFFdc3545)),
+                      foregroundColor: AppTheme.dangerColor,
+                      side: const BorderSide(color: AppTheme.dangerColor),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
@@ -516,20 +624,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFCFE2FF),
-                    border: Border.all(color: isDark ? const Color(0xFF334155) : const Color(0xFF9EC5FE)),
+                    color: isDark
+                        ? const Color(0xFF1E293B)
+                        : const Color(0xFFCFE2FF),
+                    border: Border.all(
+                      color: isDark
+                          ? const Color(0xFF334155)
+                          : const Color(0xFF9EC5FE),
+                    ),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.info, size: 16, color: isDark ? const Color(0xFF60A5FA) : const Color(0xFF084298)),
+                      Icon(
+                        Icons.info,
+                        size: 16,
+                        color: isDark
+                            ? const Color(0xFF60A5FA)
+                            : const Color(0xFF084298),
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           '${localeProvider.tr('current_method')}: ${_getAuthMethodLabel()}',
                           style: TextStyle(
                             fontSize: 13,
-                            color: isDark ? const Color(0xFF93C5FD) : const Color(0xFF084298),
+                            color: isDark
+                                ? const Color(0xFF93C5FD)
+                                : const Color(0xFF084298),
                           ),
                         ),
                       ),
@@ -540,7 +662,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
 
+          const SizedBox(height: 16),
 
+          _buildCard(
+            title: 'Notifications',
+            icon: Icons.notifications_outlined,
+            cardBg: cardBg,
+            textColor: textColor,
+            borderColor: borderColor,
+            children: [
+              _buildNavigationTile(
+                'Notification settings',
+                'Configure expiry reminders on this device',
+                Icons.notifications_active_outlined,
+                () => Navigator.pushNamed(context, '/notification-settings'),
+                textColor,
+                subtitleColor,
+                borderColor,
+                tileBg,
+              ),
+            ],
+          ),
 
           const SizedBox(height: 16),
 
@@ -553,7 +695,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             borderColor: borderColor,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF1E1E22) : Colors.white,
                   border: Border.all(color: borderColor),
@@ -561,20 +706,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
-                    value: ['English', 'Spanish', 'French', 'German', 'Chinese', 'Arabic', 'Korean'].contains(_language)
+                    value:
+                        [
+                          'English',
+                          'Spanish',
+                          'French',
+                          'German',
+                          'Chinese',
+                          'Arabic',
+                          'Korean',
+                        ].contains(_language)
                         ? _language
                         : localeProvider.currentLanguageName,
                     dropdownColor: cardBg,
                     isExpanded: true,
                     style: TextStyle(color: textColor, fontSize: 14),
                     items: const [
-                      DropdownMenuItem(value: 'English', child: Text('🇺🇸 English')),
-                      DropdownMenuItem(value: 'Spanish', child: Text('🇪🇸 Español (Spanish)')),
-                      DropdownMenuItem(value: 'French', child: Text('🇫🇷 Français (French)')),
-                      DropdownMenuItem(value: 'German', child: Text('🇩🇪 Deutsch (German)')),
-                      DropdownMenuItem(value: 'Chinese', child: Text('🇨🇳 中文 (Chinese)')),
-                      DropdownMenuItem(value: 'Arabic', child: Text('🇸🇦 العربية (Arabic)')),
-                      DropdownMenuItem(value: 'Korean', child: Text('🇰🇷 한국어 (Korean)')),
+                      DropdownMenuItem(
+                        value: 'English',
+                        child: Text('🇺🇸 English'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Spanish',
+                        child: Text('🇪🇸 Español (Spanish)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'French',
+                        child: Text('🇫🇷 Français (French)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'German',
+                        child: Text('🇩🇪 Deutsch (German)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Chinese',
+                        child: Text('🇨🇳 中文 (Chinese)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Arabic',
+                        child: Text('🇸🇦 العربية (Arabic)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Korean',
+                        child: Text('🇰🇷 한국어 (Korean)'),
+                      ),
                     ],
                     onChanged: (value) async {
                       if (value != null) {
@@ -603,7 +778,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 localeProvider.tr('user_guide'),
                 localeProvider.tr('user_guide_desc'),
                 Icons.book,
-                () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UserGuideScreen())),
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const UserGuideScreen()),
+                ),
                 textColor,
                 subtitleColor,
                 borderColor,
@@ -614,7 +792,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 localeProvider.tr('contact_support'),
                 localeProvider.tr('contact_support_desc'),
                 Icons.headset,
-                () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SupportScreen())),
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SupportScreen()),
+                ),
                 textColor,
                 subtitleColor,
                 borderColor,
@@ -638,9 +819,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(localeProvider.tr('version'), style: TextStyle(fontSize: 13, color: subtitleColor)),
+                    Text(
+                      localeProvider.tr('version'),
+                      style: TextStyle(fontSize: 13, color: subtitleColor),
+                    ),
                     const SizedBox(height: 4),
-                    Text('1.0.0', style: TextStyle(fontWeight: FontWeight.w500, color: textColor)),
+                    Text(
+                      '1.0.0',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: textColor,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -678,9 +868,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ElevatedButton.icon(
               onPressed: _handleLogout,
               icon: const Icon(Icons.logout),
-              label: Text(localeProvider.tr('logout'), style: const TextStyle(fontWeight: FontWeight.w600)),
+              label: Text(
+                localeProvider.tr('logout'),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFdc3545),
+                backgroundColor: AppTheme.dangerColor,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 elevation: 0,
@@ -698,16 +891,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: _handleDeleteAccount,
-              icon: const Icon(Icons.delete_forever, color: Color(0xFFdc3545)),
+              icon: const Icon(
+                Icons.delete_forever,
+                color: AppTheme.dangerColor,
+              ),
               label: const Text(
                 'Delete Account',
                 style: TextStyle(
-                  color: Color(0xFFdc3545),
+                  color: AppTheme.dangerColor,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFFdc3545)),
+                side: const BorderSide(color: AppTheme.dangerColor),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -730,41 +926,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required Color textColor,
     required Color borderColor,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 20, color: const Color(0xFF0d6efd)),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: textColor,
-                ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 15, color: AppTheme.primaryColor),
+            const SizedBox(width: 6),
+            Text(
+              title.toUpperCase(),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: textColor.withValues(alpha: 0.65),
+                letterSpacing: 0.55,
               ),
-            ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: borderColor),
           ),
-          const SizedBox(height: 16),
-          ...children,
-        ],
-      ),
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: children,
+          ),
+        ),
+      ],
     );
   }
 
@@ -784,18 +977,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               Text(
                 title,
-                style: TextStyle(
-                  fontWeight: FontWeight.w500,
-                  color: textColor,
-                ),
+                style: TextStyle(fontWeight: FontWeight.w500, color: textColor),
               ),
               const SizedBox(height: 4),
               Text(
                 subtitle,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: subtitleColor,
-                ),
+                style: TextStyle(fontSize: 13, color: subtitleColor),
               ),
             ],
           ),
@@ -803,7 +990,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Switch(
           value: value,
           onChanged: onChanged,
-          activeTrackColor: const Color(0xFF0d6efd),
+          activeTrackColor: AppTheme.primaryColor,
         ),
       ],
     );
@@ -836,7 +1023,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 color: tileBg,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, size: 20, color: const Color(0xFF0d6efd)),
+              child: Icon(icon, size: 20, color: AppTheme.primaryColor),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -853,10 +1040,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: subtitleColor,
-                    ),
+                    style: TextStyle(fontSize: 13, color: subtitleColor),
                   ),
                 ],
               ),

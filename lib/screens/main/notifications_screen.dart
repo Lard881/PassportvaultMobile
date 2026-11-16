@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../config/app_theme.dart';
 import '../../services/api_service.dart';
 import '../../services/cache_service.dart';
-import '../../utils/date_formatter.dart';
+import '../settings/fcm_notification_settings_screen.dart';
 import '../../widgets/skeleton_loader.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -32,10 +33,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         _isLoading = false;
       });
     }
-    
+
     // Step 2: Check if cache is stale
     final isStale = await CacheService.isNotificationsCacheStale();
-    
+
     // Step 3: If stale, fetch fresh data in background
     if (isStale || cachedNotifications.isEmpty) {
       _fetchNotifications();
@@ -53,7 +54,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (response['success'] == true) {
         final notifications = response['data'] ?? [];
         await CacheService.saveNotificationsCache(notifications);
-        
+
         if (mounted) {
           setState(() {
             _notifications = notifications;
@@ -66,7 +67,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to load notifications: $error'),
-            backgroundColor: const Color(0xFFdc3545),
+            backgroundColor: AppTheme.dangerColor,
           ),
         );
       }
@@ -84,7 +85,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       orElse: () => {},
     );
     final originalReadStatus = originalNotification['is_read'] ?? false;
-    
+
     try {
       // Optimistic UI: Mark as read instantly
       final idStr = notificationId?.toString();
@@ -96,14 +97,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         }
       });
       await CacheService.saveNotificationsCache(_notifications);
-      
+
       final response = await ApiService.markNotificationAsRead(idStr);
       if (response['success'] == true) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Marked as read'),
-              backgroundColor: Colors.green,
+              backgroundColor: AppTheme.successColor,
               duration: Duration(seconds: 2),
             ),
           );
@@ -120,11 +121,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           }
         });
         await CacheService.saveNotificationsCache(_notifications);
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to mark as read: $error'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppTheme.dangerColor,
           ),
         );
       }
@@ -133,8 +134,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Future<void> _markAllAsRead() async {
     // Store original state for rollback
-    final originalNotifications = _notifications.map((n) => Map<String, dynamic>.from(n)).toList();
-    
+    final originalNotifications = _notifications
+        .map((n) => Map<String, dynamic>.from(n))
+        .toList();
+
     try {
       // Optimistic UI: Mark all as read instantly
       setState(() {
@@ -142,33 +145,54 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           n['is_read'] = true;
         }
       });
-      
+
       final response = await ApiService.markAllNotificationsAsRead();
       if (response['success'] != true) {
         // Fallback to loop if bulk endpoint fails
-        final unread = _notifications.where((n) => n['is_read'] == false).toList();
+        final unread = originalNotifications
+            .where((n) => n['is_read'] == false)
+            .toList();
         for (var notification in unread) {
-          await ApiService.markNotificationAsRead(notification['id']);
+          final updateResponse = await ApiService.markNotificationAsRead(
+            notification['id'],
+          );
+          if (updateResponse['success'] != true) {
+            throw StateError(
+              updateResponse['message']?.toString() ??
+                  'Failed to mark a notification as read',
+            );
+          }
         }
       }
-      
+
       await _fetchNotifications();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('All notifications marked as read'),
-            backgroundColor: Color(0xFF198754),
+            backgroundColor: AppTheme.successColor,
             duration: Duration(seconds: 2),
           ),
         );
       }
     } catch (error) {
       if (mounted) {
+        setState(() {
+          _notifications = originalNotifications;
+        });
+        try {
+          await CacheService.saveNotificationsCache(_notifications);
+        } catch (cacheError) {
+          debugPrint(
+            '[NotificationsScreen] Failed to restore notification cache: '
+            '$cacheError',
+          );
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to mark all as read: $error'),
-            backgroundColor: const Color(0xFFdc3545),
+            backgroundColor: AppTheme.dangerColor,
           ),
         );
       }
@@ -209,7 +233,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to delete: $error'),
-            backgroundColor: const Color(0xFFdc3545),
+            backgroundColor: AppTheme.dangerColor,
           ),
         );
       }
@@ -220,28 +244,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (_priorityFilter == 'All Priorities') {
       return _notifications;
     }
-    return _notifications.where((n) => n['priority'] == _priorityFilter).toList();
-  }
-
-  Map<String, int> _getPriorityCounts() {
-    final unread = _notifications.where((n) => n['is_read'] == false).toList();
-    return {
-      'HIGH': unread.where((n) => n['priority'] == 'HIGH').length,
-      'MEDIUM': unread.where((n) => n['priority'] == 'MEDIUM').length,
-      'LOW': unread.where((n) => n['priority'] == 'LOW').length,
-    };
+    return _notifications
+        .where((n) => n['priority'] == _priorityFilter)
+        .toList();
   }
 
   Color _getPriorityColor(String? priority) {
     switch (priority) {
       case 'HIGH':
-        return const Color(0xFFdc3545);
+        return AppTheme.dangerColor;
       case 'MEDIUM':
-        return const Color(0xFFffc107);
+        return AppTheme.warningColor;
       case 'LOW':
-        return const Color(0xFF28a745);
+        return AppTheme.successColor;
       default:
-        return const Color(0xFF6c757d);
+        return AppTheme.lightTextSecondary;
     }
   }
 
@@ -260,18 +277,37 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   String _getTimeAgo(dynamic dateString) {
     if (dateString == null) return '';
-    
+
     try {
       final date = DateTime.parse(dateString.toString());
       final now = DateTime.now();
       final difference = now.difference(date);
 
       if (difference.inSeconds < 60) return 'Just now';
-      if (difference.inMinutes < 60) return '${difference.inMinutes} minutes ago';
-      if (difference.inHours < 24) return '${difference.inHours} hours ago';
-      if (difference.inDays < 7) return '${difference.inDays} days ago';
-      
-      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      if (difference.inMinutes < 60) {
+        return '${difference.inMinutes} minutes ago';
+      }
+      if (difference.inHours < 24) {
+        return '${difference.inHours} hours ago';
+      }
+      if (difference.inDays < 7) {
+        return '${difference.inDays} days ago';
+      }
+
+      final months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
       return '${months[date.month - 1]} ${date.day}, ${date.year}';
     } catch (e) {
       return '';
@@ -281,17 +317,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final filteredNotifications = _getFilteredNotifications();
-    final priorityCounts = _getPriorityCounts();
-    final unreadCount = _notifications.where((n) => n['is_read'] == false).length;
-    final totalActive = priorityCounts['HIGH']! + priorityCounts['MEDIUM']! + priorityCounts['LOW']!;
-    
-    // Dark mode detection
+    final unreadCount = _notifications
+        .where((n) => n['is_read'] == false)
+        .length;
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final scaffoldBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
-    final textColor = isDark ? const Color(0xFFF8F9FA) : const Color(0xFF212529);
-    final subtitleColor = isDark ? const Color(0xFFADB5BD) : const Color(0xFF6c757d);
-    final cardBg = isDark ? const Color(0xFF242424) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF404040) : const Color(0xFFDEE2E6);
+    final scaffoldBg = isDark
+        ? AppTheme.darkBgPrimary
+        : AppTheme.lightBgSecondary;
+    final textColor = isDark
+        ? AppTheme.darkTextPrimary
+        : AppTheme.lightTextPrimary;
+    final subtitleColor = isDark
+        ? AppTheme.darkTextSecondary
+        : AppTheme.lightTextSecondary;
+    final cardBg = isDark ? AppTheme.darkBgCard : AppTheme.lightBgCard;
+    final borderColor = isDark
+        ? AppTheme.darkBorderColor
+        : AppTheme.lightBorderColor;
 
     return Scaffold(
       backgroundColor: scaffoldBg,
@@ -299,115 +342,60 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ? SkeletonLoader.notificationList()
           : RefreshIndicator(
               onRefresh: _fetchNotifications,
-              color: const Color(0xFF0d6efd),
+              color: AppTheme.primaryColor,
               child: CustomScrollView(
                 slivers: [
-                  // Header
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        'Notifications',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w700,
-                          color: textColor,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Summary Section
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 12, 16),
+                      child: Row(
                         children: [
-                          // Active Notifications Card
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: cardBg,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: borderColor),
-                            ),
-                            child: Row(
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Container(
-                                  width: 48,
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF0d6efd).withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Icon(
-                                    Icons.notifications,
-                                    color: Color(0xFF0d6efd),
-                                    size: 24,
+                                Text(
+                                  'Notifications',
+                                  style: TextStyle(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.w700,
+                                    color: textColor,
                                   ),
                                 ),
-                                const SizedBox(width: 16),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      totalActive.toString(),
-                                      style: TextStyle(
-                                        fontSize: 28,
-                                        fontWeight: FontWeight.w700,
-                                        color: textColor,
-                                        height: 1,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Active Notifications',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: subtitleColor,
-                                      ),
-                                    ),
-                                  ],
+                                const SizedBox(height: 4),
+                                Text(
+                                  unreadCount == 0
+                                      ? 'You are all caught up'
+                                      : '$unreadCount unread notification${unreadCount == 1 ? '' : 's'}',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: subtitleColor,
+                                  ),
                                 ),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 16),
-
-                          // Priority Cards
-                          GridView.count(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            crossAxisCount: 3,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                            childAspectRatio: 1.2,
-                            children: [
-                              _buildPriorityCard(
-                                'HIGH',
-                                priorityCounts['HIGH']!,
-                                const Color(0xFFdc3545),
-                              ),
-                              _buildPriorityCard(
-                                'MEDIUM',
-                                priorityCounts['MEDIUM']!,
-                                const Color(0xFFffc107),
-                              ),
-                              _buildPriorityCard(
-                                'LOW',
-                                priorityCounts['LOW']!,
-                                const Color(0xFF28a745),
-                              ),
-                            ],
+                          IconButton(
+                            tooltip: 'Notification settings',
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) =>
+                                      const FCMNotificationSettingsScreen(),
+                                ),
+                              );
+                            },
+                            icon: Icon(
+                              Icons.settings_outlined,
+                              color: textColor,
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
 
-                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
-
-                  // Filter and Actions
+                  // Priority filter and bulk action
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -415,23 +403,40 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         children: [
                           Expanded(
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
                               decoration: BoxDecoration(
                                 color: cardBg,
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: borderColor),
                               ),
                               child: DropdownButtonHideUnderline(
                                 child: DropdownButton<String>(
                                   value: _priorityFilter,
                                   isExpanded: true,
-                                  style: TextStyle(fontSize: 14, color: textColor),
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: textColor,
+                                  ),
                                   dropdownColor: cardBg,
                                   items: const [
-                                    DropdownMenuItem(value: 'All Priorities', child: Text('All Priorities')),
-                                    DropdownMenuItem(value: 'HIGH', child: Text('HIGH')),
-                                    DropdownMenuItem(value: 'MEDIUM', child: Text('MEDIUM')),
-                                    DropdownMenuItem(value: 'LOW', child: Text('LOW')),
+                                    DropdownMenuItem(
+                                      value: 'All Priorities',
+                                      child: Text('All priorities'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'HIGH',
+                                      child: Text('High priority'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'MEDIUM',
+                                      child: Text('Medium priority'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'LOW',
+                                      child: Text('Low priority'),
+                                    ),
                                   ],
                                   onChanged: (value) {
                                     if (value != null) {
@@ -443,16 +448,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             ),
                           ),
                           if (unreadCount > 0) ...[
-                            const SizedBox(width: 12),
-                            OutlinedButton.icon(
+                            const SizedBox(width: 8),
+                            IconButton(
+                              tooltip: 'Mark all as read',
                               onPressed: _markAllAsRead,
-                              icon: const Icon(Icons.done_all, size: 18),
-                              label: const Text('Mark all as read'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: const Color(0xFF0d6efd),
-                                side: const BorderSide(color: Color(0xFF0d6efd)),
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                              ),
+                              icon: const Icon(Icons.done_all),
+                              color: AppTheme.primaryColor,
                             ),
                           ],
                         ],
@@ -462,37 +463,38 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
                   const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
-                  // Notifications List
+                  // Notifications list
                   if (filteredNotifications.isEmpty)
                     SliverToBoxAdapter(
                       child: Container(
                         margin: const EdgeInsets.all(16),
-                        padding: const EdgeInsets.all(48),
+                        padding: const EdgeInsets.all(36),
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF242424) : const Color(0xFFF8F9FA),
-                          borderRadius: BorderRadius.circular(12),
+                          color: cardBg,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: borderColor),
                         ),
                         child: Column(
                           children: [
                             Icon(
-                              Icons.notifications_off,
-                              size: 60,
-                              color: isDark ? Colors.grey[700] : Colors.grey[300],
+                              Icons.notifications_none,
+                              size: 52,
+                              color: subtitleColor,
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 12),
                             Text(
-                              'No Notifications',
+                              'No notifications',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
-                                color: subtitleColor,
+                                color: textColor,
                               ),
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 6),
                             Text(
                               _notifications.isEmpty
-                                  ? "You're all caught up! No notifications at this time."
-                                  : 'No notifications match this filter',
+                                  ? "You're all caught up."
+                                  : 'No notifications match this filter.',
                               style: TextStyle(
                                 fontSize: 14,
                                 color: subtitleColor,
@@ -507,13 +509,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     SliverPadding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       sliver: SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final notification = filteredNotifications[index];
-                            return _buildNotificationCard(notification);
-                          },
-                          childCount: filteredNotifications.length,
-                        ),
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final notification = filteredNotifications[index];
+                          return _buildNotificationCard(notification);
+                        }, childCount: filteredNotifications.length),
                       ),
                     ),
 
@@ -524,45 +523,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Widget _buildPriorityCard(String label, int count, Color color) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? const Color(0xFF242424) : Colors.white;
-    final subtitleColor = isDark ? const Color(0xFFADB5BD) : const Color(0xFF6c757d);
-    
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border(left: BorderSide(color: color, width: 3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: subtitleColor,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            count.toString(),
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: color,
-              height: 1,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildNotificationCard(dynamic notification) {
     final isRead = notification['is_read'] == true;
     final priority = notification['priority'] as String?;
@@ -570,12 +530,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final icon = _getPriorityIcon(priority);
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark
-        ? (isRead ? const Color(0xFF242424) : const Color(0xFF1E293B))
-        : (isRead ? Colors.white : const Color(0xFF0d6efd).withValues(alpha: 0.03));
-    final textColor = isDark ? const Color(0xFFF8F9FA) : const Color(0xFF212529);
-    final subtitleColor = isDark ? const Color(0xFFADB5BD) : const Color(0xFF6C757D);
-    final borderColor = isDark ? const Color(0xFF404040) : const Color(0xFFDEE2E6);
+    final cardBg = isDark ? AppTheme.darkBgCard : AppTheme.lightBgCard;
+    final textColor = isDark
+        ? AppTheme.darkTextPrimary
+        : AppTheme.lightTextPrimary;
+    final subtitleColor = isDark
+        ? AppTheme.darkTextSecondary
+        : AppTheme.lightTextSecondary;
+    final borderColor = isDark
+        ? AppTheme.darkBorderColor
+        : AppTheme.lightBorderColor;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -586,18 +550,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       ),
       child: Column(
         children: [
-          // Priority Bar
-          Container(
-            height: 4,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
-              ),
-            ),
-          ),
-          
           // Content
           Padding(
             padding: const EdgeInsets.all(16),
@@ -615,7 +567,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   child: Icon(icon, color: color, size: 20),
                 ),
                 const SizedBox(width: 16),
-                
+
                 // Content
                 Expanded(
                   child: Column(
@@ -629,7 +581,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               notification['title'] ?? 'Notification',
                               style: TextStyle(
                                 fontSize: 16,
-                                fontWeight: isRead ? FontWeight.w500 : FontWeight.w600,
+                                fontWeight: isRead
+                                    ? FontWeight.w500
+                                    : FontWeight.w700,
                                 color: textColor,
                               ),
                             ),
@@ -646,17 +600,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       const SizedBox(height: 8),
                       Text(
                         notification['message'] ?? '',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: subtitleColor,
-                        ),
+                        style: TextStyle(fontSize: 14, color: subtitleColor),
                       ),
                       const SizedBox(height: 12),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: color.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(4),
@@ -675,17 +629,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               if (!isRead)
                                 IconButton(
                                   icon: const Icon(Icons.check, size: 20),
-                                  color: const Color(0xFF6c757d),
-                                  onPressed: () => _markAsRead(notification['id']),
+                                  color: AppTheme.primaryColor,
+                                  onPressed: () =>
+                                      _markAsRead(notification['id']),
                                   tooltip: 'Mark as read',
                                   padding: EdgeInsets.zero,
                                   constraints: const BoxConstraints(),
                                 ),
                               const SizedBox(width: 12),
                               IconButton(
-                                icon: const Icon(Icons.delete_outline, size: 20),
-                                color: const Color(0xFF6c757d),
-                                onPressed: () => _deleteNotification(notification['id']),
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  size: 20,
+                                ),
+                                color: subtitleColor,
+                                onPressed: () =>
+                                    _deleteNotification(notification['id']),
                                 tooltip: 'Delete',
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),

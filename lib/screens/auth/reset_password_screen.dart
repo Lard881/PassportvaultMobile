@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../config/app_theme.dart';
 import '../../services/api_service.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
@@ -60,10 +61,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         // Navigate to login after 2 seconds
         await Future.delayed(const Duration(seconds: 2));
         if (mounted) {
-          Navigator.of(context).pushNamedAndRemoveUntil(
-            '/login',
-            (route) => false,
-          );
+          Navigator.of(
+            context,
+          ).pushNamedAndRemoveUntil('/login', (route) => false);
         }
       } else {
         setState(() {
@@ -86,12 +86,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.lightBgSecondary,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: const Icon(Icons.arrow_back, color: AppTheme.lightTextPrimary),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
@@ -108,13 +108,13 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
-                    color: Colors.blue.withValues(alpha: 0.1),
+                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(40),
                   ),
                   child: const Icon(
                     Icons.lock_reset,
                     size: 40,
-                    color: Colors.blue,
+                    color: AppTheme.primaryColor,
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -133,10 +133,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 // Subtitle
                 const Text(
                   'Enter your new password below',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.black54,
-                  ),
+                  style: TextStyle(fontSize: 16, color: Colors.black54),
                 ),
                 const SizedBox(height: 32),
 
@@ -146,18 +143,23 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     padding: const EdgeInsets.all(12),
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
-                      color: Colors.red.withValues(alpha: 0.1),
-                      border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                      color: AppTheme.dangerColor.withValues(alpha: 0.1),
+                      border: Border.all(
+                        color: AppTheme.dangerColor.withValues(alpha: 0.3),
+                      ),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline, color: Colors.red),
+                        const Icon(
+                          Icons.error_outline,
+                          color: AppTheme.dangerColor,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             _errorMessage!,
-                            style: const TextStyle(color: Colors.red),
+                            style: const TextStyle(color: AppTheme.dangerColor),
                           ),
                         ),
                       ],
@@ -170,19 +172,25 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     padding: const EdgeInsets.all(12),
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
-                      color: Colors.green.withValues(alpha: 0.1),
-                      border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                      color: AppTheme.successColor.withValues(alpha: 0.1),
+                      border: Border.all(
+                        color: AppTheme.successColor.withValues(alpha: 0.3),
+                      ),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.check_circle_outline,
-                            color: Colors.green),
+                        const Icon(
+                          Icons.check_circle_outline,
+                          color: AppTheme.successColor,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             _successMessage!,
-                            style: const TextStyle(color: Colors.green),
+                            style: const TextStyle(
+                              color: AppTheme.successColor,
+                            ),
                           ),
                         ),
                       ],
@@ -218,8 +226,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                     if (value == null || value.isEmpty) {
                       return 'Please enter a new password';
                     }
-                    if (value.length < 6) {
-                      return 'Password must be at least 6 characters';
+                    if (value.length < 8 ||
+                        !RegExp(r'[a-z]').hasMatch(value) ||
+                        !RegExp(r'[A-Z]').hasMatch(value) ||
+                        !RegExp(r'[0-9]').hasMatch(value)) {
+                      return 'Password must be at least 8 characters and contain uppercase, lowercase, and number';
                     }
                     return null;
                   },
@@ -270,7 +281,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   child: ElevatedButton(
                     onPressed: _isLoading ? null : _handleResetPassword,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
+                      backgroundColor: AppTheme.primaryColor,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -282,8 +293,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
                             ),
                           )
                         : const Text(
@@ -302,10 +314,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   child: TextButton(
                     onPressed: _isLoading
                         ? null
-                        : () => Navigator.of(context).pushNamedAndRemoveUntil(
-                              '/login',
-                              (route) => false,
-                            ),
+                        : () => Navigator.of(
+                            context,
+                          ).pushNamedAndRemoveUntil('/login', (route) => false),
                     child: const Text(
                       'Back to Login',
                       style: TextStyle(

@@ -3,7 +3,6 @@ import 'package:table_calendar/table_calendar.dart';
 import '../../services/api_service.dart';
 import '../../services/cache_service.dart';
 import '../../widgets/modals/document_details_modal.dart';
-import '../../utils/date_formatter.dart';
 import '../../widgets/skeleton_loader.dart';
 
 class CalendarScreen extends StatefulWidget {
@@ -33,7 +32,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
   /// Stale-while-revalidate pattern
   Future<void> _loadCachedDataAndRefresh() async {
     await _loadCachedData();
-    
+
     final isStale = await CacheService.isDocumentsCacheStale();
     if (isStale || _documents.isEmpty) {
       _fetchDocuments();
@@ -51,14 +50,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   void _processDocuments(List<dynamic> rawDocs) {
-    final documents = rawDocs.where((doc) => doc['expiry_date'] != null).toList();
+    final documents = rawDocs
+        .where((doc) => doc['expiry_date'] != null)
+        .toList();
     final events = <DateTime, List<dynamic>>{};
 
     for (var doc in documents) {
       try {
         final expiryDate = DateTime.parse(doc['expiry_date']);
-        final dateKey = DateTime(expiryDate.year, expiryDate.month, expiryDate.day);
-        
+        final dateKey = DateTime(
+          expiryDate.year,
+          expiryDate.month,
+          expiryDate.day,
+        );
+
         if (events[dateKey] == null) {
           events[dateKey] = [];
         }
@@ -143,7 +148,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
   String _formatDate(String date) {
     try {
       final dt = DateTime.parse(date);
-      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      final months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
       return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
     } catch (e) {
       return date;
@@ -161,7 +179,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     filtered.sort((a, b) {
       final daysA = _calculateDaysToExpiry(a['expiry_date']);
       final daysB = _calculateDaysToExpiry(b['expiry_date']);
-      
+
       switch (_sortBy) {
         case 'date-asc':
           return daysA.compareTo(daysB);
@@ -177,7 +195,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
     });
 
     return {
-      'expired': filtered.where((doc) => _calculateDaysToExpiry(doc['expiry_date']) < 0).toList(),
+      'expired': filtered
+          .where((doc) => _calculateDaysToExpiry(doc['expiry_date']) < 0)
+          .toList(),
       'next30': filtered.where((doc) {
         final days = _calculateDaysToExpiry(doc['expiry_date']);
         return days >= 0 && days <= 30;
@@ -186,7 +206,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
         final days = _calculateDaysToExpiry(doc['expiry_date']);
         return days > 30 && days <= 90;
       }).toList(),
-      'later': filtered.where((doc) => _calculateDaysToExpiry(doc['expiry_date']) > 90).toList(),
+      'later': filtered
+          .where((doc) => _calculateDaysToExpiry(doc['expiry_date']) > 90)
+          .toList(),
     };
   }
 
@@ -200,18 +222,32 @@ class _CalendarScreenState extends State<CalendarScreen> {
   @override
   Widget build(BuildContext context) {
     final grouped = _getGroupedDocuments();
-    final upcomingExpiries = [...grouped['next30']!, ...grouped['next90']!].take(3).toList();
+    final upcomingExpiries = [
+      ...grouped['next30']!,
+      ...grouped['next90']!,
+    ].take(3).toList();
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? const Color(0xFFF4F4F5) : const Color(0xFF212529);
-    final subtitleColor = isDark ? const Color(0xFFA1A1AA) : const Color(0xFF6C757D);
+    final textColor = isDark
+        ? const Color(0xFFF4F4F5)
+        : const Color(0xFF212529);
+    final subtitleColor = isDark
+        ? const Color(0xFFA1A1AA)
+        : const Color(0xFF6C757D);
     final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
-    final borderColor = isDark ? const Color(0xFF3F3F46) : const Color(0xFFDEE2E6);
+    final borderColor = isDark
+        ? const Color(0xFF3F3F46)
+        : const Color(0xFFDEE2E6);
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF8F9FA),
+      backgroundColor: isDark
+          ? const Color(0xFF121212)
+          : const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: const Text('Expiry Calendar', style: TextStyle(fontWeight: FontWeight.w700)),
+        title: const Text(
+          'Expiry Calendar',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
         backgroundColor: const Color(0xFF0d6efd),
         foregroundColor: Colors.white,
         elevation: 0,
@@ -265,7 +301,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         lastDay: DateTime.utc(2030, 12, 31),
                         focusedDay: _focusedDay,
                         calendarFormat: _calendarFormat,
-                        selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+                        selectedDayPredicate: (day) =>
+                            isSameDay(_selectedDay, day),
                         eventLoader: _getEventsForDay,
                         headerStyle: HeaderStyle(
                           titleCentered: true,
@@ -275,17 +312,32 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             fontWeight: FontWeight.w600,
                             color: textColor,
                           ),
-                          leftChevronIcon: const Icon(Icons.chevron_left, color: Color(0xFF0d6efd)),
-                          rightChevronIcon: const Icon(Icons.chevron_right, color: Color(0xFF0d6efd)),
+                          leftChevronIcon: const Icon(
+                            Icons.chevron_left,
+                            color: Color(0xFF0d6efd),
+                          ),
+                          rightChevronIcon: const Icon(
+                            Icons.chevron_right,
+                            color: Color(0xFF0d6efd),
+                          ),
                         ),
                         calendarStyle: CalendarStyle(
                           defaultTextStyle: TextStyle(color: textColor),
-                          weekendTextStyle: TextStyle(color: isDark ? const Color(0xFFF87171) : const Color(0xFFDC2626)),
+                          weekendTextStyle: TextStyle(
+                            color: isDark
+                                ? const Color(0xFFF87171)
+                                : const Color(0xFFDC2626),
+                          ),
                           outsideTextStyle: TextStyle(color: subtitleColor),
                           todayDecoration: BoxDecoration(
-                            color: const Color(0xFF0d6efd).withValues(alpha: 0.2),
+                            color: const Color(
+                              0xFF0d6efd,
+                            ).withValues(alpha: 0.2),
                             shape: BoxShape.circle,
-                            border: Border.all(color: const Color(0xFF0d6efd), width: 2),
+                            border: Border.all(
+                              color: const Color(0xFF0d6efd),
+                              width: 2,
+                            ),
                           ),
                           todayTextStyle: const TextStyle(
                             color: Color(0xFF0d6efd),
@@ -396,13 +448,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     SliverPadding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       sliver: SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final doc = upcomingExpiries[index];
-                            return _buildDocumentItem(doc);
-                          },
-                          childCount: upcomingExpiries.length,
-                        ),
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final doc = upcomingExpiries[index];
+                          return _buildDocumentItem(doc);
+                        }, childCount: upcomingExpiries.length),
                       ),
                     ),
 
@@ -433,7 +482,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         children: [
                           Expanded(
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
                               decoration: BoxDecoration(
                                 color: cardBg,
                                 borderRadius: BorderRadius.circular(8),
@@ -444,12 +495,27 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                   value: _filterStatus,
                                   isExpanded: true,
                                   dropdownColor: cardBg,
-                                  style: TextStyle(fontSize: 14, color: textColor),
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: textColor,
+                                  ),
                                   items: const [
-                                    DropdownMenuItem(value: 'All', child: Text('All Status')),
-                                    DropdownMenuItem(value: 'Expired', child: Text('Expired')),
-                                    DropdownMenuItem(value: 'Expiring Soon', child: Text('Expiring Soon')),
-                                    DropdownMenuItem(value: 'Valid', child: Text('Valid')),
+                                    DropdownMenuItem(
+                                      value: 'All',
+                                      child: Text('All Status'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'Expired',
+                                      child: Text('Expired'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'Expiring Soon',
+                                      child: Text('Expiring Soon'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'Valid',
+                                      child: Text('Valid'),
+                                    ),
                                   ],
                                   onChanged: (value) {
                                     if (value != null) {
@@ -463,7 +529,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
                               decoration: BoxDecoration(
                                 color: cardBg,
                                 borderRadius: BorderRadius.circular(8),
@@ -474,12 +542,27 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                   value: _sortBy,
                                   isExpanded: true,
                                   dropdownColor: cardBg,
-                                  style: TextStyle(fontSize: 14, color: textColor),
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: textColor,
+                                  ),
                                   items: const [
-                                    DropdownMenuItem(value: 'date-asc', child: Text('Soonest First')),
-                                    DropdownMenuItem(value: 'date-desc', child: Text('Latest First')),
-                                    DropdownMenuItem(value: 'name', child: Text('By Name')),
-                                    DropdownMenuItem(value: 'status', child: Text('By Status')),
+                                    DropdownMenuItem(
+                                      value: 'date-asc',
+                                      child: Text('Soonest First'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'date-desc',
+                                      child: Text('Latest First'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'name',
+                                      child: Text('By Name'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: 'status',
+                                      child: Text('By Status'),
+                                    ),
                                   ],
                                   onChanged: (value) {
                                     if (value != null) {
@@ -509,10 +592,26 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         mainAxisSpacing: 12,
                         childAspectRatio: 1.5,
                         children: [
-                          _buildSummaryCard('EXPIRED', grouped['expired']!.length, const Color(0xFFdc3545)),
-                          _buildSummaryCard('NEXT 30 DAYS', grouped['next30']!.length, const Color(0xFFffc107)),
-                          _buildSummaryCard('NEXT 90 DAYS', grouped['next90']!.length, const Color(0xFF0d6efd)),
-                          _buildSummaryCard('LATER', grouped['later']!.length, const Color(0xFF198754)),
+                          _buildSummaryCard(
+                            'EXPIRED',
+                            grouped['expired']!.length,
+                            const Color(0xFFdc3545),
+                          ),
+                          _buildSummaryCard(
+                            'NEXT 30 DAYS',
+                            grouped['next30']!.length,
+                            const Color(0xFFffc107),
+                          ),
+                          _buildSummaryCard(
+                            'NEXT 90 DAYS',
+                            grouped['next90']!.length,
+                            const Color(0xFF0d6efd),
+                          ),
+                          _buildSummaryCard(
+                            'LATER',
+                            grouped['later']!.length,
+                            const Color(0xFF198754),
+                          ),
                         ],
                       ),
                     ),
@@ -523,7 +622,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   // Grouped Documents
                   ...['expired', 'next30', 'next90', 'later'].map((key) {
                     final docs = grouped[key]!;
-                    if (docs.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+                    if (docs.isEmpty)
+                      return const SliverToBoxAdapter(child: SizedBox.shrink());
 
                     String title;
                     Color color;
@@ -551,7 +651,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         icon = Icons.event_available;
                         break;
                       default:
-                        return const SliverToBoxAdapter(child: SizedBox.shrink());
+                        return const SliverToBoxAdapter(
+                          child: SizedBox.shrink(),
+                        );
                     }
 
                     return SliverToBoxAdapter(
@@ -640,9 +742,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF242424) : Colors.white;
-    final textColor = isDark ? const Color(0xFFF8F9FA) : const Color(0xFF212529);
-    final subtitleColor = isDark ? const Color(0xFFADB5BD) : const Color(0xFF6C757D);
-    final borderColor = isDark ? const Color(0xFF404040) : const Color(0xFFDEE2E6);
+    final textColor = isDark
+        ? const Color(0xFFF8F9FA)
+        : const Color(0xFF212529);
+    final subtitleColor = isDark
+        ? const Color(0xFFADB5BD)
+        : const Color(0xFF6C757D);
+    final borderColor = isDark
+        ? const Color(0xFF404040)
+        : const Color(0xFFDEE2E6);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -679,16 +787,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
               const SizedBox(height: 4),
               Text(
                 '${doc['profile_name'] ?? 'Unknown'} · ${doc['document_type'] ?? 'Document'}',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: subtitleColor,
-                ),
+                style: TextStyle(fontSize: 14, color: subtitleColor),
               ),
               const SizedBox(height: 8),
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
@@ -707,19 +815,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     daysToExpiry < 0
                         ? '${daysToExpiry.abs()} days ago (${_formatDate(doc['expiry_date'])})'
                         : 'in $daysToExpiry days (${_formatDate(doc['expiry_date'])})',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: subtitleColor,
-                    ),
+                    style: TextStyle(fontSize: 12, color: subtitleColor),
                   ),
                 ],
               ),
             ],
           ),
-          trailing: Icon(
-            Icons.chevron_right,
-            color: subtitleColor,
-          ),
+          trailing: Icon(Icons.chevron_right, color: subtitleColor),
           onTap: () {
             showDialog(
               context: context,
@@ -744,4 +846,3 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 }
-

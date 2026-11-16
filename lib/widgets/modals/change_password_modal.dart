@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 
 class ChangePasswordModal extends StatefulWidget {
-  final Future<String?> Function(String currentPassword, String newPassword) onSubmit;
+  final Future<String?> Function(String currentPassword, String newPassword)
+  onSubmit;
 
-  const ChangePasswordModal({
-    super.key,
-    required this.onSubmit,
-  });
+  const ChangePasswordModal({super.key, required this.onSubmit});
 
   @override
   State<ChangePasswordModal> createState() => _ChangePasswordModalState();
@@ -17,7 +15,7 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  
+
   bool _obscureCurrentPassword = true;
   bool _obscureNewPassword = true;
   bool _obscureConfirmPassword = true;
@@ -62,10 +60,16 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF242424) : Colors.white;
-    final textColor = isDark ? const Color(0xFFF8F9FA) : const Color(0xFF212529);
-    final subtitleColor = isDark ? const Color(0xFFADB5BD) : const Color(0xFF6C757D);
+    final textColor = isDark
+        ? const Color(0xFFF8F9FA)
+        : const Color(0xFF212529);
+    final subtitleColor = isDark
+        ? const Color(0xFFADB5BD)
+        : const Color(0xFF6C757D);
     final fieldBg = isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF8F9FA);
-    final borderColor = isDark ? const Color(0xFF404040) : const Color(0xFFDEE2E6);
+    final borderColor = isDark
+        ? const Color(0xFF404040)
+        : const Color(0xFFDEE2E6);
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -89,7 +93,7 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            
+
             // Header
             Padding(
               padding: const EdgeInsets.all(20),
@@ -111,7 +115,7 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
                 ],
               ),
             ),
-            
+
             // Form
             Expanded(
               child: SingleChildScrollView(
@@ -127,7 +131,11 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
                         decoration: BoxDecoration(
                           color: const Color(0xFF0d6efd).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFF0d6efd).withValues(alpha: 0.3)),
+                          border: Border.all(
+                            color: const Color(
+                              0xFF0d6efd,
+                            ).withValues(alpha: 0.3),
+                          ),
                         ),
                         child: const Row(
                           children: [
@@ -139,7 +147,7 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
                             SizedBox(width: 12),
                             Expanded(
                               child: Text(
-                                'Password must be at least 6 characters long.',
+                                'Password must be at least 8 characters and contain uppercase, lowercase, and number.',
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: Color(0xFF0d6efd),
@@ -155,18 +163,31 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFdc3545).withValues(alpha: 0.1),
+                            color: const Color(
+                              0xFFdc3545,
+                            ).withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: const Color(0xFFdc3545).withValues(alpha: 0.3)),
+                            border: Border.all(
+                              color: const Color(
+                                0xFFdc3545,
+                              ).withValues(alpha: 0.3),
+                            ),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.error_outline, color: Color(0xFFdc3545), size: 20),
+                              const Icon(
+                                Icons.error_outline,
+                                color: Color(0xFFdc3545),
+                                size: 20,
+                              ),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
                                   _errorMessage!,
-                                  style: const TextStyle(color: Color(0xFFdc3545), fontSize: 13),
+                                  style: const TextStyle(
+                                    color: Color(0xFFdc3545),
+                                    fontSize: 13,
+                                  ),
                                 ),
                               ),
                             ],
@@ -174,7 +195,7 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
                         ),
                         const SizedBox(height: 16),
                       ],
-                      
+
                       // Current Password
                       Text(
                         'Current Password',
@@ -201,9 +222,14 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
                           prefixIcon: const Icon(Icons.lock_outline),
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscureCurrentPassword ? Icons.visibility : Icons.visibility_off,
+                              _obscureCurrentPassword
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
                             ),
-                            onPressed: () => setState(() => _obscureCurrentPassword = !_obscureCurrentPassword),
+                            onPressed: () => setState(
+                              () => _obscureCurrentPassword =
+                                  !_obscureCurrentPassword,
+                            ),
                           ),
                         ),
                         validator: (value) {
@@ -214,7 +240,7 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
                         },
                       ),
                       const SizedBox(height: 16),
-                      
+
                       // New Password
                       Text(
                         'New Password',
@@ -241,17 +267,24 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
                           prefixIcon: const Icon(Icons.lock_reset),
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscureNewPassword ? Icons.visibility : Icons.visibility_off,
+                              _obscureNewPassword
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
                             ),
-                            onPressed: () => setState(() => _obscureNewPassword = !_obscureNewPassword),
+                            onPressed: () => setState(
+                              () => _obscureNewPassword = !_obscureNewPassword,
+                            ),
                           ),
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
                             return 'Please enter a new password';
                           }
-                          if (value.length < 6) {
-                            return 'Password must be at least 6 characters';
+                          if (value.length < 8 ||
+                              !RegExp(r'[a-z]').hasMatch(value) ||
+                              !RegExp(r'[A-Z]').hasMatch(value) ||
+                              !RegExp(r'[0-9]').hasMatch(value)) {
+                            return 'Password must be at least 8 characters and contain uppercase, lowercase, and number';
                           }
                           if (value == _currentPasswordController.text) {
                             return 'New password must be different from current';
@@ -260,7 +293,7 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
                         },
                       ),
                       const SizedBox(height: 16),
-                      
+
                       // Confirm Password
                       Text(
                         'Confirm New Password',
@@ -287,9 +320,14 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
                           prefixIcon: const Icon(Icons.check_circle_outline),
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
+                              _obscureConfirmPassword
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
                             ),
-                            onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                            onPressed: () => setState(
+                              () => _obscureConfirmPassword =
+                                  !_obscureConfirmPassword,
+                            ),
                           ),
                         ),
                         validator: (value) {
@@ -302,15 +340,17 @@ class _ChangePasswordModalState extends State<ChangePasswordModal> {
                           return null;
                         },
                       ),
-                      
+
                       const SizedBox(height: 24),
-                      
+
                       // Action Buttons
                       Row(
                         children: [
                           Expanded(
                             child: OutlinedButton(
-                              onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
+                              onPressed: _isLoading
+                                  ? null
+                                  : () => Navigator.of(context).pop(),
                               style: OutlinedButton.styleFrom(
                                 minimumSize: const Size(0, 48),
                               ),

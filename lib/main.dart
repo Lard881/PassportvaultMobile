@@ -34,29 +34,29 @@ import 'config/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize timezone database
   tz.initializeTimeZones();
-  
+
   // Set local timezone to Africa/Accra (Ghana)
   try {
     tz.setLocalLocation(tz.getLocation('Africa/Accra'));
   } catch (e) {
     debugPrint('[Timezone] Failed to set Africa/Accra: $e');
   }
-  
+
   // Initialize Firebase
   await Firebase.initializeApp();
-  
+
   // Initialize local notifications
   await LocalNotificationService.initialize();
-  
+
   // Initialize FCM (Firebase Cloud Messaging)
   await fcmNotificationService.initialize();
-  
+
   // Initialize FCM background handler
   await initializeFCMBackgroundHandler();
-  
+
   runApp(const MyApp());
 }
 
@@ -96,7 +96,8 @@ class MyApp extends StatelessWidget {
               '/backup-restore': (context) => const BackupRestoreScreen(),
               '/secure-sharing': (context) => const SecureSharingScreen(),
               '/settings': (context) => const SettingsScreen(),
-              '/notification-settings': (context) => const FCMNotificationSettingsScreen(),
+              '/notification-settings': (context) =>
+                  const FCMNotificationSettingsScreen(),
               '/support': (context) => const SupportScreen(),
               '/privacy-policy': (context) => const PrivacyPolicyScreen(),
               '/terms-conditions': (context) => const TermsConditionsScreen(),
@@ -132,6 +133,8 @@ class _AppWrapperState extends State<AppWrapper> with WidgetsBindingObserver {
   bool _shouldShowLock = false;
   bool _hasCheckedLock = false;
   Timer? _inactivityTimer;
+  AuthProvider? _authProvider;
+  bool? _wasAuthenticated;
 
   @override
   void initState() {
@@ -140,10 +143,35 @@ class _AppWrapperState extends State<AppWrapper> with WidgetsBindingObserver {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final authProvider = Provider.of<AuthProvider>(context);
+    if (_authProvider != authProvider) {
+      _authProvider?.removeListener(_handleAuthChanged);
+      _authProvider = authProvider;
+      _wasAuthenticated = authProvider.isAuthenticated;
+      authProvider.addListener(_handleAuthChanged);
+    }
+  }
+
+  @override
   void dispose() {
     _inactivityTimer?.cancel();
+    _authProvider?.removeListener(_handleAuthChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void _handleAuthChanged() {
+    final isAuthenticated = _authProvider?.isAuthenticated ?? false;
+    if (_wasAuthenticated == true && !isAuthenticated && mounted) {
+      _inactivityTimer?.cancel();
+      setState(() {
+        _shouldShowLock = false;
+        _hasCheckedLock = false;
+      });
+    }
+    _wasAuthenticated = isAuthenticated;
   }
 
   void _resetInactivityTimer() {
@@ -198,11 +226,11 @@ class _AppWrapperState extends State<AppWrapper> with WidgetsBindingObserver {
   Future<void> _checkAppLock() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     if (authProvider.isLoading) return;
-    
+
     // Only check lock if user is authenticated
     if (authProvider.isAuthenticated) {
       final isLockEnabled = await biometricAuthService.isAppLockEnabled();
-      if (mounted) {
+      if (mounted && authProvider.isAuthenticated) {
         setState(() {
           _shouldShowLock = isLockEnabled;
           _hasCheckedLock = true;
@@ -215,7 +243,7 @@ class _AppWrapperState extends State<AppWrapper> with WidgetsBindingObserver {
       if (mounted) {
         setState(() {
           _shouldShowLock = false;
-          _hasCheckedLock = true;
+          _hasCheckedLock = false;
         });
       }
     }
@@ -236,9 +264,7 @@ class _AppWrapperState extends State<AppWrapper> with WidgetsBindingObserver {
         // Show loading while checking auth
         if (authProvider.isLoading) {
           return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 
@@ -251,9 +277,7 @@ class _AppWrapperState extends State<AppWrapper> with WidgetsBindingObserver {
         if (!_hasCheckedLock) {
           _checkAppLock();
           return const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 

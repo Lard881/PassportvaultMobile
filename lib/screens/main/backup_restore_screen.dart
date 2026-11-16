@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../config/app_theme.dart';
 import '../../services/api_service.dart';
 import '../../providers/connectivity_provider.dart';
 
@@ -112,7 +113,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(value ? 'Automatic backup enabled' : 'Automatic backup disabled'),
-            backgroundColor: const Color(0xFF198754),
+            backgroundColor: AppTheme.successColor,
             duration: const Duration(seconds: 1),
           ),
         );
@@ -123,7 +124,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Setting saved locally: ${value ? "ON" : "OFF"}'),
-            backgroundColor: const Color(0xFF198754),
+            backgroundColor: AppTheme.successColor,
             duration: const Duration(seconds: 1),
           ),
         );
@@ -173,7 +174,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Backup created: ${data['profile_count']} profiles, ${data['document_count']} documents'),
-              backgroundColor: const Color(0xFF198754),
+              backgroundColor: AppTheme.successColor,
             ),
           );
           await _loadBackupStatus();
@@ -186,7 +187,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Backup failed: $error'),
-            backgroundColor: const Color(0xFFdc3545),
+            backgroundColor: AppTheme.dangerColor,
           ),
         );
       }
@@ -213,7 +214,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0d6efd),
+              backgroundColor: AppTheme.primaryColor,
               foregroundColor: Colors.white,
             ),
             child: const Text('Restore'),
@@ -238,7 +239,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(message),
-              backgroundColor: const Color(0xFF198754),
+              backgroundColor: AppTheme.successColor,
               duration: const Duration(seconds: 2),
             ),
           );
@@ -256,7 +257,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Restore failed: $error'),
-            backgroundColor: const Color(0xFFdc3545),
+            backgroundColor: AppTheme.dangerColor,
           ),
         );
       }
@@ -270,25 +271,33 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgPrimary = isDark ? const Color(0xFF18181B) : Colors.white;
-    final bgSecondary = isDark ? const Color(0xFF242427) : const Color(0xFFF8F9FA);
-    final textPrimary = isDark ? const Color(0xFFF4F4F5) : const Color(0xFF212529);
-    final textSecondary = isDark ? const Color(0xFFA1A1AA) : const Color(0xFF6C757D);
-    final borderColor = isDark ? const Color(0xFF3F3F46) : const Color(0xFFDEE2E6);
+    final bgPrimary = isDark ? AppTheme.darkBgPrimary : AppTheme.lightBgSecondary;
+    final bgSecondary = isDark ? AppTheme.darkBgCard : AppTheme.lightBgCard;
+    final textPrimary = isDark
+        ? AppTheme.darkTextPrimary
+        : AppTheme.lightTextPrimary;
+    final textSecondary = isDark
+        ? AppTheme.darkTextSecondary
+        : AppTheme.lightTextSecondary;
+    final borderColor = isDark
+        ? AppTheme.darkBorderColor
+        : AppTheme.lightBorderColor;
 
     return Scaffold(
       backgroundColor: bgPrimary,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0d6efd),
-        foregroundColor: Colors.white,
+        backgroundColor: bgSecondary,
+        foregroundColor: textPrimary,
         elevation: 0,
         title: const Text('Backups', style: TextStyle(fontWeight: FontWeight.w600)),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF0d6efd)))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppTheme.primaryColor),
+            )
           : RefreshIndicator(
               onRefresh: _loadBackupStatus,
-              color: const Color(0xFF0d6efd),
+              color: AppTheme.primaryColor,
               child: ListView(
                 children: [
                   // Auto Backup Toggle
@@ -305,7 +314,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Automatic Backup',
+                                'Automatic backup preference',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
@@ -315,8 +324,8 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                               const SizedBox(height: 4),
                               Text(
                                 _autoBackup
-                                    ? 'Your data is backed up automatically'
-                                    : 'Enable to back up your data',
+                                    ? 'Enabled. Use Back Up Now to create a backup.'
+                                    : 'Choose whether automatic backups are enabled.',
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: textSecondary,
@@ -332,7 +341,11 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                             height: 28,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(14),
-                              color: _autoBackup ? const Color(0xFF0d6efd) : const Color(0xFFcccccc),
+                              color: _autoBackup
+                                  ? AppTheme.primaryColor
+                                  : (isDark
+                                        ? AppTheme.darkBorderColor
+                                        : AppTheme.lightBorderColor),
                             ),
                             child: AnimatedAlign(
                               duration: const Duration(milliseconds: 200),
@@ -451,9 +464,10 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                           child: ElevatedButton(
                             onPressed: (_isBackingUp || isOffline) ? null : _handleCreateBackup,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0d6efd),
+                              backgroundColor: AppTheme.primaryColor,
                               foregroundColor: Colors.white,
-                              disabledBackgroundColor: const Color(0xFF6c757d),
+                              disabledBackgroundColor:
+                                  AppTheme.lightTextSecondary,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
@@ -514,8 +528,10 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                           OutlinedButton(
                             onPressed: _isRestoring ? null : _handleRestoreBackup,
                             style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Color(0xFF0d6efd)),
-                              foregroundColor: const Color(0xFF0d6efd),
+                              side: const BorderSide(
+                                color: AppTheme.primaryColor,
+                              ),
+                              foregroundColor: AppTheme.primaryColor,
                               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),

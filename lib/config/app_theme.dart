@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 
 class AppTheme {
   // Primary Colors - Matching web version
-  static const Color primaryColor = Color(0xFF0d6efd);
-  static const Color primaryHover = Color(0xFF0051D5);
-  static const Color dangerColor = Color(0xFFdc3545);
-  static const Color warningColor = Color(0xFFffc107);
-  static const Color successColor = Color(0xFF198754);
-  static const Color infoColor = Color(0xFF0d6efd);
+  static const Color primaryColor = Color(0xFF203D73);
+  static const Color primaryHover = Color(0xFF172F5B);
+  static const Color dangerColor = Color(0xFFC83D3A);
+  static const Color warningColor = Color(0xFFA85B00);
+  static const Color successColor = Color(0xFF147D63);
+  static const Color infoColor = Color(0xFF203D73);
   
   // Document Type Colors
   static const Color docPassport = Color(0xFF9333EA); // purple
@@ -25,21 +25,21 @@ class AppTheme {
   
   // Light Theme Colors
   static const Color lightBgPrimary = Color(0xFFFFFFFF);
-  static const Color lightBgSecondary = Color(0xFFF8F9FA);
+  static const Color lightBgSecondary = Color(0xFFF3F5F9);
   static const Color lightBgCard = Color(0xFFFFFFFF);
-  static const Color lightTextPrimary = Color(0xFF212529);
-  static const Color lightTextSecondary = Color(0xFF6c757d);
-  static const Color lightTextMuted = Color(0xFF9ca3af);
-  static const Color lightBorderColor = Color(0xFFDEE2E6);
+  static const Color lightTextPrimary = Color(0xFF172033);
+  static const Color lightTextSecondary = Color(0xFF647189);
+  static const Color lightTextMuted = Color(0xFF8994A8);
+  static const Color lightBorderColor = Color(0xFFDFE5EF);
   
   // Dark Theme Colors
-  static const Color darkBgPrimary = Color(0xFF1a1a1a);
-  static const Color darkBgSecondary = Color(0xFF2d2d2d);
-  static const Color darkBgCard = Color(0xFF242424);
-  static const Color darkTextPrimary = Color(0xFFf8f9fa);
-  static const Color darkTextSecondary = Color(0xFFadb5bd);
-  static const Color darkTextMuted = Color(0xFF868e96);
-  static const Color darkBorderColor = Color(0xFF404040);
+  static const Color darkBgPrimary = Color(0xFF111827);
+  static const Color darkBgSecondary = Color(0xFF0D1422);
+  static const Color darkBgCard = Color(0xFF182235);
+  static const Color darkTextPrimary = Color(0xFFF4F6FA);
+  static const Color darkTextSecondary = Color(0xFFB2BDCE);
+  static const Color darkTextMuted = Color(0xFF8290A6);
+  static const Color darkBorderColor = Color(0xFF2C3A50);
   
   // Border Radius
   static const double radiusSm = 8.0;
@@ -76,12 +76,12 @@ class AppTheme {
     ),
     
     appBarTheme: const AppBarTheme(
-      backgroundColor: primaryColor,
-      foregroundColor: Colors.white,
+      backgroundColor: lightBgCard,
+      foregroundColor: lightTextPrimary,
       elevation: 0,
       centerTitle: false,
       titleTextStyle: TextStyle(
-        color: Colors.white,
+        color: lightTextPrimary,
         fontSize: fontSizeLg,
         fontWeight: FontWeight.w700,
       ),
@@ -203,7 +203,7 @@ class AppTheme {
     ),
     
     appBarTheme: const AppBarTheme(
-      backgroundColor: primaryColor,
+      backgroundColor: darkBgCard,
       foregroundColor: Colors.white,
       elevation: 0,
       centerTitle: false,

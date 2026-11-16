@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../services/cache_service.dart';
 import '../../widgets/modals/document_details_modal.dart';
-import '../../utils/date_formatter.dart';
 import '../../widgets/skeleton_loader.dart';
 
 class AlertsScreen extends StatefulWidget {
@@ -30,10 +29,10 @@ class _AlertsScreenState extends State<AlertsScreen> {
   /// Stale-while-revalidate pattern
   Future<void> _loadCachedDataAndRefresh() async {
     await _loadCachedData();
-    
+
     final isDocsStale = await CacheService.isDocumentsCacheStale();
     final isProfilesStale = await CacheService.isProfilesCacheStale();
-    
+
     if (isDocsStale || isProfilesStale || _documents.isEmpty) {
       _fetchData();
     }
@@ -44,7 +43,9 @@ class _AlertsScreenState extends State<AlertsScreen> {
     final cachedProfiles = await CacheService.getProfilesCache();
     if (mounted && (cachedDocs.isNotEmpty || cachedProfiles.isNotEmpty)) {
       setState(() {
-        _documents = cachedDocs.where((doc) => doc['expiry_date'] != null).toList();
+        _documents = cachedDocs
+            .where((doc) => doc['expiry_date'] != null)
+            .toList();
         _profiles = cachedProfiles;
         _isLoading = false;
       });
@@ -118,16 +119,17 @@ class _AlertsScreenState extends State<AlertsScreen> {
   Map<String, dynamic> _generateAlert(dynamic doc) {
     final daysToExpiry = _calculateDaysToExpiry(doc['expiry_date']);
     final docId = doc['id'].toString();
-    
+
     if (_dismissedAlerts.contains(docId)) return {};
-    
+
     if (daysToExpiry < 0) {
       return {
         'id': '$docId-expired',
         'type': 'error',
         'priority': 'high',
         'title': 'Document Expired',
-        'message': '${doc['document_name']} has expired ${daysToExpiry.abs()} days ago',
+        'message':
+            '${doc['document_name']} has expired ${daysToExpiry.abs()} days ago',
         'document': doc,
         'daysToExpiry': daysToExpiry,
       };
@@ -137,7 +139,8 @@ class _AlertsScreenState extends State<AlertsScreen> {
         'type': 'warning',
         'priority': 'high',
         'title': 'Expires Very Soon',
-        'message': '${doc['document_name']} expires in $daysToExpiry ${daysToExpiry == 1 ? 'day' : 'days'}',
+        'message':
+            '${doc['document_name']} expires in $daysToExpiry ${daysToExpiry == 1 ? 'day' : 'days'}',
         'document': doc,
         'daysToExpiry': daysToExpiry,
       };
@@ -162,20 +165,20 @@ class _AlertsScreenState extends State<AlertsScreen> {
         'daysToExpiry': daysToExpiry,
       };
     }
-    
+
     return {};
   }
 
   List<Map<String, dynamic>> _getAlerts() {
     final alerts = <Map<String, dynamic>>[];
-    
+
     for (var doc in _documents) {
       final alert = _generateAlert(doc);
       if (alert.isNotEmpty) {
         alerts.add(alert);
       }
     }
-    
+
     // Sort by priority
     alerts.sort((a, b) {
       const priorityOrder = {'high': 0, 'medium': 1, 'low': 2};
@@ -185,14 +188,16 @@ class _AlertsScreenState extends State<AlertsScreen> {
       // Secondary sort by days to expiry
       return (a['daysToExpiry'] as int).compareTo(b['daysToExpiry'] as int);
     });
-    
+
     return alerts;
   }
 
   List<Map<String, dynamic>> _getFilteredAlerts() {
     final alerts = _getAlerts();
     if (_filterPriority == 'All') return alerts;
-    return alerts.where((a) => a['priority'] == _filterPriority.toLowerCase()).toList();
+    return alerts
+        .where((a) => a['priority'] == _filterPriority.toLowerCase())
+        .toList();
   }
 
   Color _getAlertColor(String type) {
@@ -253,7 +258,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
   Widget build(BuildContext context) {
     final allAlerts = _expiryRemindersEnabled ? _getAlerts() : [];
     final filteredAlerts = _expiryRemindersEnabled ? _getFilteredAlerts() : [];
-    
+
     final priorityCounts = {
       'high': allAlerts.where((a) => a['priority'] == 'high').length,
       'medium': allAlerts.where((a) => a['priority'] == 'medium').length,
@@ -308,7 +313,9 @@ class _AlertsScreenState extends State<AlertsScreen> {
                               onPressed: _handleClearAll,
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: const Color(0xFF0d6efd),
-                                side: const BorderSide(color: Color(0xFF0d6efd)),
+                                side: const BorderSide(
+                                  color: Color(0xFF0d6efd),
+                                ),
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 16,
                                   vertical: 8,
@@ -391,15 +398,31 @@ class _AlertsScreenState extends State<AlertsScreen> {
                           mainAxisSpacing: 12,
                           childAspectRatio: 1.3,
                           children: [
-                            _buildPriorityCard('HIGH', priorityCounts['high']!, const Color(0xFFdc3545), 'High'),
-                            _buildPriorityCard('MEDIUM', priorityCounts['medium']!, const Color(0xFFffc107), 'Medium'),
-                            _buildPriorityCard('LOW', priorityCounts['low']!, const Color(0xFF0d6efd), 'Low'),
+                            _buildPriorityCard(
+                              'HIGH',
+                              priorityCounts['high']!,
+                              const Color(0xFFdc3545),
+                              'High',
+                            ),
+                            _buildPriorityCard(
+                              'MEDIUM',
+                              priorityCounts['medium']!,
+                              const Color(0xFFffc107),
+                              'Medium',
+                            ),
+                            _buildPriorityCard(
+                              'LOW',
+                              priorityCounts['low']!,
+                              const Color(0xFF0d6efd),
+                              'Low',
+                            ),
                           ],
                         ),
                       ),
                     ),
 
-                  if (_expiryRemindersEnabled) const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                  if (_expiryRemindersEnabled)
+                    const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
                   // Filter Dropdown (only show if enabled)
                   if (_expiryRemindersEnabled)
@@ -417,12 +440,27 @@ class _AlertsScreenState extends State<AlertsScreen> {
                             child: DropdownButton<String>(
                               value: _filterPriority,
                               isExpanded: true,
-                              style: const TextStyle(fontSize: 14, color: Color(0xFF212529)),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF212529),
+                              ),
                               items: const [
-                                DropdownMenuItem(value: 'All', child: Text('All Priorities')),
-                                DropdownMenuItem(value: 'High', child: Text('High Priority')),
-                                DropdownMenuItem(value: 'Medium', child: Text('Medium Priority')),
-                                DropdownMenuItem(value: 'Low', child: Text('Low Priority')),
+                                DropdownMenuItem(
+                                  value: 'All',
+                                  child: Text('All Priorities'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'High',
+                                  child: Text('High Priority'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Medium',
+                                  child: Text('Medium Priority'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'Low',
+                                  child: Text('Low Priority'),
+                                ),
                               ],
                               onChanged: (value) {
                                 if (value != null) {
@@ -435,7 +473,8 @@ class _AlertsScreenState extends State<AlertsScreen> {
                       ),
                     ),
 
-                  if (_expiryRemindersEnabled) const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                  if (_expiryRemindersEnabled)
+                    const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
                   // Alerts List (only show if enabled)
                   if (_expiryRemindersEnabled)
@@ -457,7 +496,9 @@ class _AlertsScreenState extends State<AlertsScreen> {
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                allAlerts.isEmpty ? 'No alerts' : 'No alerts for this filter',
+                                allAlerts.isEmpty
+                                    ? 'No alerts'
+                                    : 'No alerts for this filter',
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
@@ -482,13 +523,13 @@ class _AlertsScreenState extends State<AlertsScreen> {
                       SliverPadding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final alert = filteredAlerts[index];
-                              return _buildAlertCard(alert);
-                            },
-                            childCount: filteredAlerts.length,
-                          ),
+                          delegate: SliverChildBuilderDelegate((
+                            context,
+                            index,
+                          ) {
+                            final alert = filteredAlerts[index];
+                            return _buildAlertCard(alert);
+                          }, childCount: filteredAlerts.length),
                         ),
                       ),
 
@@ -499,9 +540,14 @@ class _AlertsScreenState extends State<AlertsScreen> {
     );
   }
 
-  Widget _buildPriorityCard(String label, int count, Color color, String filterValue) {
+  Widget _buildPriorityCard(
+    String label,
+    int count,
+    Color color,
+    String filterValue,
+  ) {
     final isSelected = _filterPriority == filterValue;
-    
+
     return GestureDetector(
       onTap: () {
         setState(() {
@@ -513,10 +559,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFFF8F9FA) : Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: color,
-            width: isSelected ? 2 : 1,
-          ),
+          border: Border.all(color: color, width: isSelected ? 2 : 1),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -551,7 +594,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
     final color = _getAlertColor(alert['type']);
     final icon = _getAlertIcon(alert['type']);
     final docId = document['id'].toString();
-    
+
     // Find profile
     final profile = _profiles.firstWhere(
       (p) => p['id'] == document['profile_id'],
@@ -666,7 +709,10 @@ class _AlertsScreenState extends State<AlertsScreen> {
                       ),
                       const SizedBox(height: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: color.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(4),

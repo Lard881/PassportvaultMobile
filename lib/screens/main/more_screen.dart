@@ -2,14 +2,43 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
-import '../../widgets/modals/privacy_modal.dart';
-import '../../widgets/modals/terms_modal.dart';
-import '../info/support_screen.dart';
-import '../info/user_guide_screen.dart';
-import '../settings/fcm_notification_settings_screen.dart';
+import '../../config/app_theme.dart';
+import '../../utils/date_formatter.dart';
 
-class MoreScreen extends StatelessWidget {
+class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
+
+  @override
+  State<MoreScreen> createState() => _MoreScreenState();
+}
+
+class _MoreScreenState extends State<MoreScreen> {
+  int _alertCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAlertCount();
+  }
+
+  Future<void> _loadAlertCount() async {
+    try {
+      final response = await ApiService.getDocuments();
+      if (mounted && response['success'] == true) {
+        final documents = response['data'] as List? ?? [];
+        setState(() {
+          _alertCount = documents.where((document) {
+            final expiryDate = document['expiry_date']?.toString();
+            if (expiryDate == null || expiryDate.isEmpty) return false;
+            final daysUntilExpiry = DateFormatter.daysUntilExpiry(expiryDate);
+            return daysUntilExpiry != null && daysUntilExpiry <= 90;
+          }).length;
+        });
+      }
+    } catch (error) {
+      debugPrint('[MoreScreen] Failed to load alert count: $error');
+    }
+  }
 
   void _handleLogout(BuildContext context) async {
     final confirmed = await showDialog<bool>(
@@ -24,9 +53,7 @@ class MoreScreen extends StatelessWidget {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFFdc3545),
-            ),
+            style: TextButton.styleFrom(foregroundColor: AppTheme.dangerColor),
             child: const Text('Logout'),
           ),
         ],
@@ -34,30 +61,22 @@ class MoreScreen extends StatelessWidget {
     );
 
     if (confirmed == true && context.mounted) {
-      try {
-        await ApiService.logout();
-      } catch (_) {}
-      
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final didLogout = await authProvider.logout(revokeSession: true);
       if (context.mounted) {
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        await authProvider.logout();
-        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        if (didLogout) {
+          Navigator.of(
+            context,
+          ).pushNamedAndRemoveUntil('/login', (route) => false);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(authProvider.errorMessage ?? 'Unable to log out.'),
+            ),
+          );
+        }
       }
     }
-  }
-
-  void _showPrivacyPolicy(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => const PrivacyModal(),
-    );
-  }
-
-  void _showTermsAndConditions(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => const TermsModal(),
-    );
   }
 
   @override
@@ -66,31 +85,40 @@ class MoreScreen extends StatelessWidget {
     final user = authProvider.user;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final bgColor = isDark ? const Color(0xFF18181B) : const Color(0xFFF8F9FA);
-    final cardBg = isDark ? const Color(0xFF242427) : Colors.white;
-    final textColor = isDark ? const Color(0xFFF4F4F5) : const Color(0xFF212529);
-    final subtitleColor = isDark ? const Color(0xFFA1A1AA) : const Color(0xFF6C757D);
-    final borderColor = isDark ? const Color(0xFF3F3F46) : const Color(0xFFDEE2E6);
+    final bgColor = isDark
+        ? AppTheme.darkBgSecondary
+        : AppTheme.lightBgSecondary;
+    final cardBg = isDark ? AppTheme.darkBgCard : AppTheme.lightBgCard;
+    final textColor = isDark
+        ? AppTheme.darkTextPrimary
+        : AppTheme.lightTextPrimary;
+    final subtitleColor = isDark
+        ? AppTheme.darkTextSecondary
+        : AppTheme.lightTextSecondary;
+    final borderColor = isDark
+        ? AppTheme.darkBorderColor
+        : AppTheme.lightBorderColor;
 
     String getInitials() {
-      if (user?['name'] != null && user!['name'].toString().trim().isNotEmpty) {
-        final name = user['name'].toString().trim();
-        return name[0].toUpperCase();
-      } else if (user?['email'] != null && user!['email'].toString().trim().isNotEmpty) {
-        final email = user['email'].toString().trim();
-        return email[0].toUpperCase();
+      final name = user?['name']?.toString().trim() ?? '';
+      if (name.isNotEmpty) {
+        return name
+            .split(RegExp(r'\s+'))
+            .take(2)
+            .map((part) => part[0].toUpperCase())
+            .join();
       }
-      return 'U';
+      final email = user?['email']?.toString().trim() ?? '';
+      return email.isNotEmpty ? email[0].toUpperCase() : 'U';
     }
-    
+
     return Scaffold(
       backgroundColor: bgColor,
       body: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(
             child: Container(
-              color: cardBg,
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -103,18 +131,11 @@ class MoreScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    'Additional features and settings',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: subtitleColor,
-                    ),
-                  ),
                 ],
               ),
             ),
           ),
-          
+
           SliverPadding(
             padding: const EdgeInsets.all(20),
             sliver: SliverList(
@@ -122,43 +143,47 @@ class MoreScreen extends StatelessWidget {
                 // User Info Card
                 if (user != null) ...[
                   Container(
-                    padding: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: cardBg,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(18),
                       border: Border.all(color: borderColor),
                     ),
                     child: Row(
                       children: [
-                        // Avatar
                         Container(
-                          width: 60,
-                          height: 60,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF0d6efd),
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor.withValues(
+                              alpha: 0.12,
+                            ),
                             shape: BoxShape.circle,
                           ),
                           child: Center(
                             child: Text(
                               getInitials(),
                               style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 24,
+                                color: AppTheme.primaryColor,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 16),
-                        // User Info
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                user['name']?.toString() ?? user['email']?.toString() ?? 'User',
+                                user['name']?.toString() ??
+                                    user['email']?.toString() ??
+                                    'User',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  fontSize: 18,
+                                  fontSize: 15,
                                   fontWeight: FontWeight.w600,
                                   color: textColor,
                                 ),
@@ -166,8 +191,10 @@ class MoreScreen extends StatelessWidget {
                               const SizedBox(height: 4),
                               Text(
                                 user['email']?.toString() ?? '',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  fontSize: 14,
+                                  fontSize: 13,
                                   color: subtitleColor,
                                 ),
                               ),
@@ -179,177 +206,82 @@ class MoreScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
                 ],
-                
-                // Menu Items
-                _buildMenuItem(
-                  context,
-                  'Calendar',
-                  'View expiry dates',
-                  Icons.calendar_today,
-                  const Color(0xFF0d6efd),
-                  isDark ? const Color(0xFF1E3A5F) : const Color(0xFFe3f2fd),
-                  '/calendar',
-                  cardBg,
-                  textColor,
-                  subtitleColor,
-                  borderColor,
-                ),
-                const SizedBox(height: 12),
-                _buildMenuItem(
-                  context,
-                  'Notification Settings',
-                  'Manage notification times and reminders',
-                  Icons.notifications_outlined,
-                  const Color(0xFFff9800),
-                  isDark ? const Color(0xFF4A2C0F) : const Color(0xFFfff3e0),
-                  '/notification-settings',
-                  cardBg,
-                  textColor,
-                  subtitleColor,
-                  borderColor,
-                ),
-                const SizedBox(height: 12),
-                _buildMenuItem(
-                  context,
-                  'Secure Sharing',
-                  'Share documents securely',
-                  Icons.shield_outlined,
-                  const Color(0xFF198754),
-                  isDark ? const Color(0xFF14532D) : const Color(0xFFe8f5e9),
-                  '/secure-sharing',
-                  cardBg,
-                  textColor,
-                  subtitleColor,
-                  borderColor,
-                ),
-                const SizedBox(height: 12),
-                _buildMenuItem(
-                  context,
-                  'Backup & Restore',
-                  'Manage your backups',
-                  Icons.cloud_download_outlined,
-                  const Color(0xFF0dcaf0),
-                  isDark ? const Color(0xFF164E63) : const Color(0xFFe0f7fa),
-                  '/backup-restore',
-                  cardBg,
-                  textColor,
-                  subtitleColor,
-                  borderColor,
-                ),
-                const SizedBox(height: 12),
-                _buildMenuItem(
-                  context,
-                  'Settings',
-                  'App preferences and configuration',
-                  Icons.settings_outlined,
-                  const Color(0xFF6c757d),
-                  isDark ? const Color(0xFF27272A) : const Color(0xFFf8f9fa),
-                  '/settings',
-                  cardBg,
-                  textColor,
-                  subtitleColor,
-                  borderColor,
-                ),
+
+                _buildSectionLabel('VAULT', subtitleColor),
+                _buildGroup([
+                  _buildMenuItem(
+                    context,
+                    'Expiry calendar',
+                    Icons.calendar_today_outlined,
+                    '/calendar',
+                  ),
+                  _buildMenuItem(
+                    context,
+                    'Alerts',
+                    Icons.warning_amber_outlined,
+                    '/alerts',
+                    badgeCount: _alertCount,
+                  ),
+                  _buildMenuItem(
+                    context,
+                    'Secure sharing',
+                    Icons.link,
+                    '/secure-sharing',
+                  ),
+                  _buildMenuItem(
+                    context,
+                    'Activity log',
+                    Icons.monitor_heart_outlined,
+                    '/activity-log',
+                  ),
+                  _buildMenuItem(
+                    context,
+                    'Backup & Restore',
+                    Icons.cloud_upload_outlined,
+                    '/backup-restore',
+                  ),
+                ]),
+                const SizedBox(height: 20),
+                _buildSectionLabel('APP', subtitleColor),
+                _buildGroup([
+                  _buildMenuItem(
+                    context,
+                    'Settings',
+                    Icons.settings_outlined,
+                    '/settings',
+                  ),
+                  _buildMenuItem(
+                    context,
+                    'Help & support',
+                    Icons.help_outline,
+                    '/support',
+                  ),
+                ]),
                 const SizedBox(height: 24),
-                
-                // Help & Support Section
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: cardBg,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: borderColor),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Help & Support',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: textColor,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _buildHelpButton(
-                        context,
-                        'User Guide',
-                        Icons.help_outline,
-                        () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const UserGuideScreen(),
-                            ),
-                          );
-                        },
-                        textColor,
-                        borderColor,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildHelpButton(
-                        context,
-                        'Contact Support',
-                        Icons.mail_outline,
-                        () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const SupportScreen(),
-                            ),
-                          );
-                        },
-                        textColor,
-                        borderColor,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildHelpButton(
-                        context,
-                        'Terms & Conditions',
-                        Icons.description_outlined,
-                        () => _showTermsAndConditions(context),
-                        textColor,
-                        borderColor,
-                      ),
-                      const SizedBox(height: 12),
-                      _buildHelpButton(
-                        context,
-                        'Privacy Policy',
-                        Icons.privacy_tip_outlined,
-                        () => _showPrivacyPolicy(context),
-                        textColor,
-                        borderColor,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-                
+
                 // Version Info
                 Center(
                   child: Column(
                     children: [
                       Text(
                         'PassportVault v1.0.0',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: subtitleColor,
-                        ),
+                        style: TextStyle(fontSize: 14, color: subtitleColor),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         '© 2026 All rights reserved',
                         style: TextStyle(
                           fontSize: 12,
-                          color: isDark ? const Color(0xFF71717A) : const Color(0xFF9ca3af),
+                          color: isDark
+                              ? const Color(0xFF71717A)
+                              : const Color(0xFF9ca3af),
                         ),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Logout Button
                 SizedBox(
                   width: double.infinity,
@@ -388,112 +320,98 @@ class MoreScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMenuItem(
-    BuildContext context,
-    String title,
-    String description,
-    IconData icon,
-    Color iconColor,
-    Color iconBg,
-    String route,
-    Color cardBg,
-    Color textColor,
-    Color subtitleColor,
-    Color borderColor,
-  ) {
-    return InkWell(
-      onTap: () {
-        if (route == '/notification-settings') {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const FCMNotificationSettingsScreen(),
-            ),
-          );
-        } else {
-          Navigator.pushNamed(context, route);
-        }
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: borderColor),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: iconColor, size: 24),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: textColor,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    description,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: subtitleColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right, color: Color(0xFF9ca3af), size: 20),
-          ],
+  Widget _buildSectionLabel(String label, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8, left: 4),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.6,
         ),
       ),
     );
   }
 
-  Widget _buildHelpButton(
+  Widget _buildGroup(List<Widget> rows) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? AppTheme.darkBgCard : AppTheme.lightBgCard;
+    final borderColor = isDark
+        ? AppTheme.darkBorderColor
+        : AppTheme.lightBorderColor;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
+        border: Border.all(color: borderColor),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        children: [
+          for (var index = 0; index < rows.length; index++) ...[
+            rows[index],
+            if (index < rows.length - 1)
+              Divider(height: 1, thickness: 1, indent: 54, color: borderColor),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMenuItem(
     BuildContext context,
     String title,
     IconData icon,
-    VoidCallback onTap,
-    Color textColor,
-    Color borderColor,
-  ) {
+    String route, {
+    int? badgeCount,
+  }) {
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final subtitleColor = Theme.of(context).textTheme.bodyMedium?.color;
+
     return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-        decoration: BoxDecoration(
-          border: Border.all(color: borderColor),
-          borderRadius: BorderRadius.circular(8),
-        ),
+      onTap: () => Navigator.pushNamed(context, route),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
         child: Row(
           children: [
-            Icon(icon, size: 18, color: const Color(0xFF0d6efd)),
-            const SizedBox(width: 12),
+            SizedBox(
+              width: 22,
+              child: Icon(icon, color: subtitleColor, size: 19),
+            ),
+            const SizedBox(width: 16),
             Expanded(
               child: Text(
                 title,
                 style: TextStyle(
-                  fontSize: 14,
                   color: textColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
+            if (badgeCount != null && badgeCount > 0) ...[
+              Container(
+                constraints: const BoxConstraints(minWidth: 24),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppTheme.dangerColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  badgeCount > 99 ? '99+' : '$badgeCount',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppTheme.dangerColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+            ],
+            Icon(Icons.chevron_right, color: subtitleColor, size: 20),
           ],
         ),
       ),

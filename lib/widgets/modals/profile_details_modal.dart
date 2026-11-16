@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../config/app_theme.dart';
 
 class ProfileDetailsModal extends StatelessWidget {
   final Map<String, dynamic> profile;
@@ -60,55 +61,71 @@ class ProfileDetailsModal extends StatelessWidget {
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(0),
       child: Container(
-        margin: const EdgeInsets.only(top: 80),
+        margin: EdgeInsets.zero,
         decoration: BoxDecoration(
           color: dialogBg,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: BorderRadius.zero,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.max,
           children: [
-            // Modal Handle
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(top: 12),
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-
             // Header
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Profile Details',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: textColor,
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.arrow_back, color: subtitleColor),
+                      tooltip: 'Back',
+                      onPressed: () => Navigator.of(context).pop(),
                     ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.close, color: subtitleColor),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined),
+                      color: AppTheme.primaryColor,
+                      tooltip: 'Edit profile',
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        onEdit();
+                      },
+                    ),
+                    PopupMenuButton<String>(
+                      tooltip: 'More profile actions',
+                      icon: Icon(Icons.more_vert, color: subtitleColor),
+                      onSelected: (action) {
+                        if (action == 'delete') {
+                          Navigator.of(context).pop();
+                          onDelete();
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Text('Delete profile'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
 
             // Content
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  0,
+                  20,
+                  MediaQuery.viewPaddingOf(context).bottom + 24,
+                ),
                 child: Column(
                   children: [
                     // Profile Header
-                    Column(
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Avatar
                         Container(
@@ -151,66 +168,70 @@ class ProfileDetailsModal extends StatelessWidget {
                                   ),
                                 ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(width: 16),
 
                         // Name
-                        Text(
-                          profile['full_name'] ?? 'Unknown',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w600,
-                            color: textColor,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-
-                        // Badges
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(
-                                  0xFF0d6efd,
-                                ).withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                profileType,
-                                style: const TextStyle(
-                                  color: Color(0xFF0d6efd),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _getStatusColor(
-                                  status,
-                                ).withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                status,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                profile['full_name'] ?? 'Unknown',
                                 style: TextStyle(
-                                  color: _getStatusColor(status),
-                                  fontSize: 14,
+                                  fontSize: 20,
                                   fontWeight: FontWeight.w600,
+                                  color: textColor,
                                 ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.primaryColor.withValues(
+                                        alpha: 0.1,
+                                      ),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      profileType,
+                                      style: const TextStyle(
+                                        color: AppTheme.primaryColor,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: _getStatusColor(
+                                        status,
+                                      ).withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      status,
+                                      style: TextStyle(
+                                        color: _getStatusColor(status),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -380,67 +401,6 @@ class ProfileDetailsModal extends StatelessWidget {
                           ),
                         ),
                       ),
-
-                    const SizedBox(height: 24),
-
-                    // Action Buttons
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                              onEdit();
-                            },
-                            icon: const Icon(Icons.edit, size: 18),
-                            label: const Text('Edit'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              side: const BorderSide(color: Color(0xFF0d6efd)),
-                              foregroundColor: const Color(0xFF0d6efd),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                              onDelete();
-                            },
-                            icon: const Icon(Icons.delete, size: 18),
-                            label: const Text('Delete'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              side: const BorderSide(color: Color(0xFFdc3545)),
-                              foregroundColor: const Color(0xFFdc3545),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Close Button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0d6efd),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        child: const Text(
-                          'Close',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
                   ],
                 ),
               ),

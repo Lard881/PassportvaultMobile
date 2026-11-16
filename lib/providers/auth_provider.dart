@@ -2,6 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
+import '../services/cache_service.dart';
+import '../services/document_cache_service.dart';
+import '../services/sync_service.dart';
 
 class AuthProvider with ChangeNotifier {
   bool _isAuthenticated = false;
@@ -9,6 +12,7 @@ class AuthProvider with ChangeNotifier {
   Map<String, dynamic>? _user;
   String? _errorMessage;
   Timer? _tokenRefreshTimer;
+  bool _isLoggingOut = false;
 
   bool get isAuthenticated => _isAuthenticated;
   bool get isLoading => _isLoading;
@@ -134,13 +138,13 @@ class AuthProvider with ChangeNotifier {
         // Remember Me ONLY controls credential auto-fill (saved separately)
         final prefs = await SharedPreferences.getInstance();
         if (rememberMe) {
-          await prefs.setString('pv_saved_email', email);
-          await prefs.setString('pv_saved_password', password); // In production, consider not saving password
+          await ApiService.saveRememberedCredentials(email, password);
         } else {
           // Clear saved credentials when Remember Me is unchecked
-          await prefs.remove('pv_saved_email');
-          await prefs.remove('pv_saved_password');
+          await ApiService.clearRememberedCredentials();
         }
+        await prefs.remove('pv_saved_email');
+        await prefs.remove('pv_saved_password');
 
         _user = userData;
         _isAuthenticated = true;
@@ -173,8 +177,23 @@ class AuthProvider with ChangeNotifier {
       final response = await ApiService.signup(fullName, email, password);
 
       if (response['success'] == true) {
-        final token = response['data']['token'];
-        final userData = response['data']['user'];
+        final data = response['data'];
+        final session = data['session'];
+        final token = data['token'] ??
+            (session is Map ? session['access_token'] : null);
+        final userData = data['user'];
+
+        if (token is! String || token.isEmpty) {
+          _user = null;
+          _isAuthenticated = false;
+          _errorMessage = 'Account created. Check your email, then sign in.';
+          notifyListeners();
+          return {
+            'success': true,
+            'requiresLogin': true,
+            'message': _errorMessage,
+          };
+        }
 
         await ApiService.saveToken(token);
         await _saveUserToStorage(userData);
@@ -201,17 +220,63 @@ class AuthProvider with ChangeNotifier {
   }
 
   // Logout
-  Future<void> logout() async {
-    // Stop token refresh
-    _stopTokenRefresh();
-    
-    await ApiService.deleteToken();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('pv_user');
+  Future<bool> logout({bool revokeSession = false}) async {
+    if (_isLoggingOut) return false;
+    _isLoggingOut = true;
 
-    _user = null;
-    _isAuthenticated = false;
-    notifyListeners();
+    try {
+      if (!await ensureNoPendingOfflineChanges()) {
+        return false;
+      }
+
+      _stopTokenRefresh();
+      if (revokeSession) {
+        try {
+          await ApiService.logout();
+        } catch (error) {
+          debugPrint('[Auth] Server logout failed: $error');
+        }
+      }
+
+      await ApiService.deleteToken();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('pv_user');
+      await CacheService.clearAllCache();
+      await DocumentCacheService.clearAllCache();
+
+      _user = null;
+      _isAuthenticated = false;
+      _errorMessage = null;
+      notifyListeners();
+      return true;
+    } finally {
+      _isLoggingOut = false;
+    }
+  }
+
+  Future<bool> ensureNoPendingOfflineChanges() async {
+    try {
+      final pendingCount = await CacheService.getPendingActionCount();
+      if (pendingCount > 0 || SyncService.isSyncing) {
+        final countMessage = pendingCount == 1
+            ? '1 unsynced offline change'
+            : '$pendingCount unsynced offline changes';
+        _errorMessage = SyncService.isSyncing
+            ? 'Your offline changes are still syncing. Please wait for sync to finish before logging out.'
+            : 'You have $countMessage. Reconnect and wait for them to sync before logging out.';
+        notifyListeners();
+        return false;
+      }
+
+      _errorMessage = null;
+      return true;
+    } catch (error) {
+      debugPrint('[Auth] Could not verify pending offline changes: $error');
+      _errorMessage =
+          'Unable to verify pending offline changes. Please try again; you are still signed in.';
+      notifyListeners();
+      return false;
+    }
   }
 
   // Save user to storage

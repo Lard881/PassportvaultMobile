@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../config/app_theme.dart';
+import 'support_screen.dart';
 
 class UserGuideScreen extends StatelessWidget {
   const UserGuideScreen({super.key});
@@ -6,15 +8,21 @@ class UserGuideScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? const Color(0xFFF4F4F5) : const Color(0xFF212529);
-    final subtitleColor = isDark ? const Color(0xFFA1A1AA) : const Color(0xFF6C757D);
+    final textColor = isDark
+        ? AppTheme.darkTextPrimary
+        : AppTheme.lightTextPrimary;
+    final subtitleColor = isDark
+        ? AppTheme.darkTextSecondary
+        : AppTheme.lightTextSecondary;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF8F9FA),
+      backgroundColor: isDark
+          ? AppTheme.darkBgPrimary
+          : AppTheme.lightBgSecondary,
       appBar: AppBar(
         title: const Text('User Guide', style: TextStyle(fontWeight: FontWeight.w700)),
-        backgroundColor: const Color(0xFF0d6efd),
-        foregroundColor: Colors.white,
+        backgroundColor: isDark ? AppTheme.darkBgCard : AppTheme.lightBgCard,
+        foregroundColor: textColor,
         elevation: 0,
       ),
       body: ListView(
@@ -114,10 +122,10 @@ class UserGuideScreen extends StatelessWidget {
             context,
             '💾 Backup & Storage',
             [
-              'Enable auto-backup in Settings',
-              'Manual backup anytime',
-              'Monitor storage usage',
-              'Restore from backup',
+              'Review the automatic-backup preference on the Backup & Restore screen',
+              'Use Back Up Now to create a backup manually',
+              'Check the latest backup time and contents before restoring',
+              'Restore replaces current data after confirmation',
             ],
           ),
 
@@ -138,7 +146,7 @@ class UserGuideScreen extends StatelessWidget {
             context,
             '❓ FAQs',
             [
-              'Q: Is my data secure?\nA: Yes! All data is encrypted and stored securely.',
+              'Q: Is my data secure?\nA: Review the Privacy Policy and Security settings for information about how the app handles your data.',
               '',
               'Q: Can I use this on multiple devices?\nA: Yes, login with your account on any device.',
               '',
@@ -146,7 +154,7 @@ class UserGuideScreen extends StatelessWidget {
               '',
               'Q: What file formats are supported?\nA: PDF, JPG, PNG, and most image formats.',
               '',
-              'Q: Can I export my data?\nA: Yes, use the Export button in Documents screen.',
+              'Q: Can I export my data?\nA: Check the available export actions on the Documents screen.',
             ],
           ),
 
@@ -155,9 +163,7 @@ class UserGuideScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF0d6efd), Color(0xFF0b5ed7)],
-              ),
+              color: AppTheme.primaryColor,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -184,13 +190,17 @@ class UserGuideScreen extends StatelessWidget {
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
                   onPressed: () {
-                    Navigator.pop(context);
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const SupportScreen(),
+                      ),
+                    );
                   },
                   icon: const Icon(Icons.email),
                   label: const Text('Contact Support'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
-                    foregroundColor: const Color(0xFF0d6efd),
+                    foregroundColor: AppTheme.primaryColor,
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   ),
                 ),
@@ -205,10 +215,16 @@ class UserGuideScreen extends StatelessWidget {
 
   Widget _buildGuideSection(BuildContext context, String title, List<String> items) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? const Color(0xFF1E1E22) : Colors.white;
-    final textColor = isDark ? const Color(0xFFF4F4F5) : const Color(0xFF212529);
-    final subtitleColor = isDark ? const Color(0xFFA1A1AA) : const Color(0xFF6C757D);
-    final borderColor = isDark ? const Color(0xFF3F3F46) : const Color(0xFFDEE2E6);
+    final cardBg = isDark ? AppTheme.darkBgCard : AppTheme.lightBgCard;
+    final textColor = isDark
+        ? AppTheme.darkTextPrimary
+        : AppTheme.lightTextPrimary;
+    final subtitleColor = isDark
+        ? AppTheme.darkTextSecondary
+        : AppTheme.lightTextSecondary;
+    final borderColor = isDark
+        ? AppTheme.darkBorderColor
+        : AppTheme.lightBorderColor;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
@@ -245,7 +261,7 @@ class UserGuideScreen extends StatelessWidget {
                       child: Icon(
                         Icons.check_circle,
                         size: 16,
-                        color: Color(0xFF198754),
+                        color: AppTheme.successColor,
                       ),
                     ),
                   const SizedBox(width: 8),
